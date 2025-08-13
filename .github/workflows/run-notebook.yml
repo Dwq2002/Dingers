@@ -56,5 +56,4 @@ jobs:
           to: ${{ secrets.MAIL_USER }}
           from: "GitHub Actions <${{ secrets.MAIL_USER }}>"
           secure: true
-          content_type: text/plain
           body: ${{ steps.summary.outputs.summary }}
