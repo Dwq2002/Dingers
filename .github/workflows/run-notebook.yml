@@ -18,7 +18,7 @@ jobs:
       - run: pip install papermill jupyter nbconvert
 
       - name: Execute notebook (inject date)
-        run: papermill daily_update.ipynb output.ipynb -p RUN_DATE "$(date -u +%F)"
+        run: papermill Dingers_2025.ipynb output.ipynb -p RUN_DATE "$(date -u +%F)"
 
       - name: Upload executed notebook (optional)
         uses: actions/upload-artifact@v4
