@@ -1,0 +1,45 @@
+name: Daily Notebook Run
+on:
+  schedule:
+    - cron: "0 13 * * *"  # runs every day at 13:00 UTC
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install papermill jupyter nbconvert
+
+      - name: Execute notebook
+        run: papermill daily_update.ipynb output.ipynb
+
+      - name: Convert to HTML
+        run: jupyter nbconvert --to html output.ipynb
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-report
+          path: output.html
+
+      # Optional: Email yourself
+      - name: Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "Daily Notebook Update"
+          to: you@example.com
+          from: GitHub Actions
+          content_type: text/html
+          body: |
+            Daily notebook output is attached.
+        if: ${{ always() }}
