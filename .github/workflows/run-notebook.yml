@@ -55,5 +55,5 @@ jobs:
           subject: Daily Dingers Report # <-- guaranteed defined
           to: ${{ secrets.MAIL_USER }}
           from: "GitHub Actions <${{ secrets.MAIL_USER }}>"
-          secure: true
+          secure: false
           body: ${{ steps.summary.outputs.summary }}
