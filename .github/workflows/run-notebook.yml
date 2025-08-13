@@ -52,4 +52,9 @@ jobs:
           server_port: 587
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
-          subject:
+          subject: Daily Dingers Report # <-- guaranteed defined
+          to: ${{ secrets.MAIL_USER }}
+          from: "GitHub Actions <${{ secrets.MAIL_USER }}>"
+          secure: true
+          content_type: text/plain
+          body: ${{ steps.summary.outputs.summary }}
