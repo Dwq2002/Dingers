@@ -53,7 +53,7 @@ jobs:
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
           subject: Daily Dingers Report # <-- guaranteed defined
-          to: "qwd2002@gmail.com, rhinoswank87@gmail.com, jteheng@gmail.com, ethan.hughes713@gmail.com, bospey80@gmail.com"
+          to: "qwd2002@gmail.com, rhinoswank87@gmail.com, jteheng@gmail.com, ethan.hughes713@gmail.com, bespey80@gmail.com"
           from: "GitHub Actions <${{ secrets.MAIL_USER }}>"
           secure: false
           body: ${{ steps.summary.outputs.summary }}
