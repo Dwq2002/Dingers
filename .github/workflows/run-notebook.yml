@@ -49,4 +49,4 @@ jobs:
           to: "qwd2002@gmail.com"
           from: "GitHub Actions <${{ secrets.MAIL_USER }}>"
           secure: false
-          body: ${{ steps.summary.outputs.summary }}
+          body: ${{ env.SUMMARY }}  
