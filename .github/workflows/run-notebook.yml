@@ -1,5 +1,9 @@
 name: Daily Notebook Run
 
+permissions:
+  contents: write
+
+
 on:
   schedule:
     - cron: "0 13 * * *"  # 13:00 UTC = 8:00am America/Chicago during CDT
