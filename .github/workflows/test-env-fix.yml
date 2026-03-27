@@ -1,0 +1,38 @@
+name: Test Env-File Fix
+
+on:
+  push:
+    branches:
+      - copilot/iterate-workflow-failures
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install papermill jupyter nbconvert
+
+      - name: Execute notebook (inject date)
+        run: papermill Dingers_2026.ipynb output.ipynb -p RUN_DATE "$(date -u +%F)"
+
+      - name: Test Export summary to env
+        run: |
+          DELIMITER=$(openssl rand -hex 16)
+          echo "SUMMARY<<${DELIMITER}" >> "$GITHUB_ENV"
+          cat summary.html >> "$GITHUB_ENV"
+          echo "" >> "$GITHUB_ENV"
+          echo "${DELIMITER}" >> "$GITHUB_ENV"
+          echo "SUMMARY env var set successfully (length: ${#SUMMARY})"
+
+      - name: Verify SUMMARY is set
+        run: |
+          if [ -z "$SUMMARY" ]; then
+            echo "FAIL: SUMMARY is empty"
+            exit 1
+          fi
+          echo "PASS: SUMMARY is set (length: ${#SUMMARY} chars)"
