@@ -32,10 +32,8 @@ jobs:
 
       - name: Export summary to env
         run: |
-          sed -i 's/\r$//' summary.txt
-          tail -c1 summary.txt | od -An -t x1 | grep -qi '0a' || echo >> summary.txt
           echo "SUMMARY<<EOF" >> "$GITHUB_ENV"
-          cat summary.txt >> "$GITHUB_ENV"
+          cat summary.html >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
 
       - name: Send email
@@ -46,7 +44,7 @@ jobs:
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
           subject: Daily Dingers Report # <-- guaranteed defined
-          to: "qwd2002@gmail.com, rhinoswank87@gmail.com, jteheng@gmail.com, ethan.hughes713@gmail.com, bespey80@gmail.com"
+          to: "qwd2002@gmail.com"
           from: "DingerBot445 <${{ secrets.MAIL_USER }}>"
           secure: false
-          body: ${{ env.SUMMARY }}  
+          html_body: ${{ env.SUMMARY }}  
