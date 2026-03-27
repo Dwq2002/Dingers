@@ -32,9 +32,10 @@ jobs:
 
       - name: Export summary to env
         run: |
-          echo "SUMMARY<<EOF" >> "$GITHUB_ENV"
+          DELIMITER=$(openssl rand -hex 16)
+          echo "SUMMARY<<${DELIMITER}" >> "$GITHUB_ENV"
           cat summary.html >> "$GITHUB_ENV"
-          echo "EOF" >> "$GITHUB_ENV"
+          echo "${DELIMITER}" >> "$GITHUB_ENV"
 
       - name: Send email
         uses: dawidd6/action-send-mail@v3
