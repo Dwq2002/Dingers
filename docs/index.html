@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dingers 2026</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap');
+
+    :root {
+      --bg: #0d0f14;
+      --card: #161b25;
+      --border: #252d3d;
+      --text: #e8eaf0;
+      --muted: #6b7694;
+      --green: #00c47d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    header h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 10vw, 6rem);
+      letter-spacing: 0.08em;
+      background: linear-gradient(135deg, #fff 30%, #ffd166 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 6px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+
+    .card.full { grid-column: 1 / -1; }
+
+    .card h2 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+
+    /* Standings */
+    .standings-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .standings-row:last-child { border-bottom: none; }
+
+    .rank {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      color: var(--muted);
+      width: 32px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .rank.gold   { color: #ffd166; }
+    .rank.silver { color: #c0c0c0; }
+    .rank.bronze { color: #cd7f32; }
+
+    .team-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .team-name {
+      font-weight: 700;
+      font-size: 1.1rem;
+      flex: 1;
+    }
+
+    .team-pts {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      letter-spacing: 0.04em;
+    }
+
+    .team-change {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      width: 52px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .team-change.up   { background: rgba(0,196,125,0.15); color: var(--green); }
+    .team-change.zero { background: rgba(107,118,148,0.15); color: var(--muted); }
+
+    /* Today's scorers */
+    .scorer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+    }
+    .scorer-row:last-child { border-bottom: none; }
+
+    .scorer-name { font-weight: 600; font-size: 0.95rem; }
+    .scorer-team { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+    .scorer-pts {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.6rem;
+    }
+
+    .empty { color: var(--muted); font-size: 0.9rem; text-align: center; padding: 20px 0; }
+
+    /* Chart */
+    .chart-wrap { position: relative; height: 280px; }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px 0;
+      font-size: 0.9rem;
+      letter-spacing: 0.05em;
+    }
+
+    .updated {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin-top: 32px;
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Dingers 2026</h1>
+  <p>HR Fantasy League &bull; Season Standings</p>
+</header>
+
+<div class="grid" id="app">
+  <div class="loading" style="grid-column:1/-1">Loading stats...</div>
+</div>
+
+<p class="updated" id="updated"></p>
+
+<script>
+const RAW = 'https://raw.githubusercontent.com/Dwq2002/Dingers/main/data/daily/';
+
+const TEAM_COLORS = {
+  Dave:   '#4e8ef7',
+  Bo:     '#f7674e',
+  Swank:  '#ffd166',
+  Ethan:  '#a78bfa',
+  Teheng: '#00c47d',
+};
+
+function parseCSV(text) {
+  const [header, ...rows] = text.trim().split('\n');
+  const keys = header.split(',');
+  return rows.map(row => {
+    const vals = row.split(',');
+    const obj = {};
+    keys.forEach((k, i) => obj[k.trim()] = vals[i]?.trim());
+    obj.points = Number(obj.points) || 0;
+    return obj;
+  });
+}
+
+function teamTotals(rows) {
+  const totals = {};
+  for (const r of rows) {
+    totals[r.team] = (totals[r.team] || 0) + r.points;
+  }
+  return totals;
+}
+
+function getDates(start, end) {
+  const dates = [];
+  const cur = new Date(start + 'T12:00:00Z');
+  const last = new Date(end + 'T12:00:00Z');
+  while (cur <= last) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+async function fetchCSV(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    return parseCSV(await r.text());
+  } catch { return null; }
+}
+
+async function main() {
+  const latest = await fetchCSV(RAW + 'latest.csv');
+  if (!latest) {
+    document.getElementById('app').innerHTML = '<div class="loading" style="grid-column:1/-1">Could not load data.</div>';
+    return;
+  }
+
+  const latestDate = latest[0]?.date || '2026-03-27';
+  const startDate  = '2026-03-23';
+  const dates = getDates(startDate, latestDate);
+
+  // Fetch all daily CSVs for chart
+  const dailyData = {};
+  await Promise.all(dates.map(async d => {
+    const rows = await fetchCSV(RAW + `points_${d}.csv`);
+    if (rows) dailyData[d] = teamTotals(rows);
+  }));
+
+  // Current standings from latest
+  const current = teamTotals(latest);
+  const sorted = Object.entries(current).sort((a, b) => b[1] - a[1]);
+
+  // Previous day totals for change indicator
+  const prevDate = dates[dates.length - 2];
+  const prev = prevDate && dailyData[prevDate] ? dailyData[prevDate] : {};
+
+  // Today's scorers
+  const scorers = latest.filter(r => r.points > 0).sort((a, b) => b.points - a.points);
+
+  // Build HTML
+  const rankClass = (i) => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+
+  const standingsHTML = sorted.map(([team, pts], i) => {
+    const change = pts - (prev[team] || 0);
+    const changeHTML = change > 0
+      ? `<span class="team-change up">+${change}</span>`
+      : `<span class="team-change zero">—</span>`;
+    return `
+      <div class="standings-row">
+        <div class="rank ${rankClass(i)}">${i + 1}</div>
+        <div class="team-dot" style="background:${TEAM_COLORS[team] || '#888'}"></div>
+        <div class="team-name">${team}</div>
+        ${changeHTML}
+        <div class="team-pts" style="color:${TEAM_COLORS[team] || '#888'}">${pts}</div>
+      </div>`;
+  }).join('');
+
+  const scorersHTML = scorers.length
+    ? scorers.map(r => `
+      <div class="scorer-row">
+        <div>
+          <div class="scorer-name">${r.player}</div>
+          <div class="scorer-team">${r.team}</div>
+        </div>
+        <div class="scorer-pts" style="color:${TEAM_COLORS[r.team] || '#888'}">+${r.points}</div>
+      </div>`).join('')
+    : '<div class="empty">No points scored today yet</div>';
+
+  // Chart datasets
+  const teams = Object.keys(TEAM_COLORS);
+  const chartDates = dates.filter(d => dailyData[d]);
+  const datasets = teams.map(team => ({
+    label: team,
+    data: chartDates.map(d => dailyData[d]?.[team] || 0),
+    borderColor: TEAM_COLORS[team],
+    backgroundColor: TEAM_COLORS[team] + '22',
+    borderWidth: 2.5,
+    pointRadius: 3,
+    tension: 0.3,
+    fill: false,
+  }));
+
+  document.getElementById('app').innerHTML = `
+    <div class="card">
+      <h2>Standings</h2>
+      ${standingsHTML}
+    </div>
+
+    <div class="card">
+      <h2>Today's Dingers</h2>
+      ${scorersHTML}
+    </div>
+
+    <div class="card full">
+      <h2>Season Race</h2>
+      <div class="chart-wrap">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('updated').textContent = `Last updated: ${latestDate}`;
+
+  new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: { labels: chartDates.map(d => d.slice(5)), datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: '#6b7694', font: { family: 'Inter', size: 12 } }
+        },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        x: {
+          grid: { color: '#252d3d' },
+          ticks: { color: '#6b7694', font: { family: 'Inter', size: 11 } }
+        },
+        y: {
+          grid: { color: '#252d3d' },
+          ticks: { color: '#6b7694', font: { family: 'Inter', size: 11 }, stepSize: 1 },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+main();
+</script>
+</body>
+</html>
