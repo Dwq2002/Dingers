@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - copilot/iterate-workflow-failures
+  workflow_dispatch:
 
 jobs:
   test:
