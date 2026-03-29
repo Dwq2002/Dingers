@@ -5,6 +5,9 @@ permissions:
 
 
 on:
+  push:
+    branches:
+      - copilot/check-email-blank-body-issue
   schedule:
     - cron: "0 10 * * *"  # 13:00 UTC = 8:00am America/Chicago during CDT
   workflow_dispatch:
