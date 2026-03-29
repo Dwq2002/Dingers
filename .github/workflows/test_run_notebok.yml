@@ -1,9 +1,12 @@
-name: Daily Notebook Run Test
+name: Daily Notebook Run
 
 permissions:
   contents: write
 
 
+on:
+  schedule:
+    - cron: "0 10 * * *"  # 13:00 UTC = 8:00am America/Chicago during CDT
   workflow_dispatch:
 
 jobs:
