@@ -91,22 +91,21 @@
     }
     .standings-row:last-child { border-bottom: none; }
 
-    .rank {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 2rem;
-      color: var(--muted);
-      width: 32px;
-      text-align: center;
+    .team-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
       flex-shrink: 0;
+      border: 2px solid var(--border);
     }
-    .rank.gold   { color: #ffd166; }
-    .rank.silver { color: #c0c0c0; }
-    .rank.bronze { color: #cd7f32; }
 
-    .team-dot {
-      width: 12px; height: 12px;
+    .team-logo-fallback {
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       flex-shrink: 0;
+      border: 2px solid var(--border);
     }
 
     .team-name {
@@ -192,11 +191,20 @@
 const RAW = 'https://raw.githubusercontent.com/Dwq2002/Dingers/main/data/daily/';
 
 const TEAM_COLORS = {
-  Dave:   '#4e8ef7',
-  Bo:     '#f7674e',
-  Swank:  '#ffd166',
-  Ethan:  '#a78bfa',
-  Teheng: '#00c47d',
+  'Kid Named Dinger': '#4e8ef7',
+  Bo:                 '#f7674e',
+  Swank:              '#ffd166',
+  "Swank's Tanks":    '#a78bfa',
+  "Swank's Shanks":   '#00c47d',
+};
+
+const RAW_ASSETS = 'https://raw.githubusercontent.com/Dwq2002/Dingers/main/assets/team_icons/';
+const TEAM_LOGOS = {
+  'Kid Named Dinger': RAW_ASSETS + 'Kid_Named_Dinger.JPEG',
+  Bo:                 RAW_ASSETS + 'Bo.PNG',
+  Swank:              RAW_ASSETS + 'Swank.PNG',
+  "Swank's Tanks":    RAW_ASSETS + 'Swanks_Tanks.JPEG',
+  "Swank's Shanks":   RAW_ASSETS + 'Swanks_Shanks.JPG',
 };
 
 function parseCSV(text) {
@@ -268,17 +276,18 @@ async function main() {
   const scorers = latest.filter(r => r.points > 0).sort((a, b) => b.points - a.points);
 
   // Build HTML
-  const rankClass = (i) => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-
   const standingsHTML = sorted.map(([team, pts], i) => {
     const change = pts - (prev[team] || 0);
     const changeHTML = change > 0
       ? `<span class="team-change up">+${change}</span>`
       : `<span class="team-change zero">—</span>`;
+    const logoSrc = TEAM_LOGOS[team];
+    const logoEl = logoSrc
+      ? `<img class="team-logo" src="${logoSrc}" alt="${team}" />`
+      : `<div class="team-logo-fallback" style="background:${TEAM_COLORS[team] || '#888'}"></div>`;
     return `
       <div class="standings-row">
-        <div class="rank ${rankClass(i)}">${i + 1}</div>
-        <div class="team-dot" style="background:${TEAM_COLORS[team] || '#888'}"></div>
+        ${logoEl}
         <div class="team-name">${team}</div>
         ${changeHTML}
         <div class="team-pts" style="color:${TEAM_COLORS[team] || '#888'}">${pts}</div>
