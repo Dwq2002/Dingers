@@ -4,9 +4,6 @@ permissions:
   contents: write
 
 
-on:
-  schedule:
-    - cron: "0 11 * * *"  # 13:00 UTC = 8:00am America/Chicago during CDT
   workflow_dispatch:
 
 jobs:
