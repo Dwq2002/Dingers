@@ -5,6 +5,9 @@ permissions:
 
 
 on:
+  push:
+    branches:
+      - copilot/check-email-blank-body-issue
   schedule:
     - cron: "0 10 * * *"  # 13:00 UTC = 8:00am America/Chicago during CDT
   workflow_dispatch:
@@ -41,4 +44,4 @@ jobs:
           to: "qwd2002@gmail.com"
           from: "DingerBot445 <${{ secrets.MAIL_USER }}>"
           secure: false
-          html_body_file: summary.html
+          html_body: file://summary.html

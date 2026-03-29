@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: pip install papermill jupyter nbconvert
+      - run: pip install papermill jupyter nbconvert Pillow
 
       - name: Execute notebook (inject date)
         run: papermill Dingers_2026.ipynb output.ipynb -p RUN_DATE "$(date -u +%F)"
@@ -41,4 +41,4 @@ jobs:
           to: "qwd2002@gmail.com, rhinoswank87@gmail.com,jteheng@gmail.com,ethan.hughes713@gmail.com,bespey80@gmail.com"
           from: "DingerBot445 <${{ secrets.MAIL_USER }}>"
           secure: false
-          html_body_file: summary.html
+          html_body: file://summary.html
