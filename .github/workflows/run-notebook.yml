@@ -41,4 +41,4 @@ jobs:
           to: "qwd2002@gmail.com, rhinoswank87@gmail.com,jteheng@gmail.com,ethan.hughes713@gmail.com,bespey80@gmail.com"
           from: "DingerBot445 <${{ secrets.MAIL_USER }}>"
           secure: false
-          html_body_file: summary.html
+          html_body: file://summary.html
