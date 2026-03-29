@@ -30,14 +30,6 @@ jobs:
           name: executed-notebook
           path: output.ipynb
 
-      - name: Export summary to env
-        run: |
-          DELIMITER=$(openssl rand -hex 16)
-          echo "SUMMARY<<${DELIMITER}" >> "$GITHUB_ENV"
-          cat summary.html >> "$GITHUB_ENV"
-          echo "" >> "$GITHUB_ENV"
-          echo "${DELIMITER}" >> "$GITHUB_ENV"
-
       - name: Send email
         uses: dawidd6/action-send-mail@v3
         with:
@@ -49,4 +41,4 @@ jobs:
           to: "qwd2002@gmail.com, rhinoswank87@gmail.com,jteheng@gmail.com,ethan.hughes713@gmail.com,bespey80@gmail.com"
           from: "DingerBot445 <${{ secrets.MAIL_USER }}>"
           secure: false
-          html_body: ${{ env.SUMMARY }}  
+          html_body_file: summary.html
