@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dingers 2026</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap');
 
@@ -68,6 +69,8 @@
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 24px;
+      display: flex;
+      flex-direction: column;
     }
 
     .card.full { grid-column: 1 / -1; }
@@ -77,8 +80,9 @@
       font-size: 1.4rem;
       letter-spacing: 0.06em;
       color: var(--muted);
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       text-transform: uppercase;
+      flex-shrink: 0;
     }
 
     /* Standings */
@@ -86,7 +90,7 @@
       display: flex;
       align-items: center;
       gap: 14px;
-      padding: 14px 0;
+      padding: 10px 0;
       border-bottom: 1px solid var(--border);
     }
     .standings-row:last-child { border-bottom: none; }
@@ -133,28 +137,93 @@
     .team-change.zero { background: rgba(107,118,148,0.15); color: var(--muted); }
 
     /* Today's scorers */
+    .scorers-wrapper {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+    }
+    .scorers-wrapper.expanded { overflow: visible; }
+
     .scorer-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 0;
+      padding: 8px 0;
       border-bottom: 1px solid var(--border);
       gap: 12px;
     }
     .scorer-row:last-child { border-bottom: none; }
 
     .scorer-name { font-weight: 600; font-size: 0.95rem; }
-    .scorer-team { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .scorer-team { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
 
     .scorer-pts {
       font-family: 'Bebas Neue', sans-serif;
       font-size: 1.6rem;
+      flex-shrink: 0;
     }
+
+    .expand-btn {
+      display: none;
+      margin-top: 12px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 0;
+      letter-spacing: 0.03em;
+      flex-shrink: 0;
+    }
+    .expand-btn:hover { color: var(--text); }
 
     .empty { color: var(--muted); font-size: 0.9rem; text-align: center; padding: 20px 0; }
 
+    /* HBP panel */
+    .hbp-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 720px) {
+      .hbp-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .hbp-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 8px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      text-align: center;
+    }
+    .hbp-logo {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--border);
+    }
+    .hbp-logo-fallback {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+    }
+    .hbp-team { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .hbp-player { font-weight: 600; font-size: 0.85rem; line-height: 1.3; }
+    .hbp-pts {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+    .hbp-count { font-size: 0.85rem; font-weight: 600; margin-top: 2px; }
+    .hbp-label { font-size: 0.7rem; color: var(--muted); margin-top: 1px; }
+    .hbp-rate { font-size: 0.68rem; color: var(--muted); margin-top: 6px; letter-spacing: 0.03em; }
+
     /* Chart */
-    .chart-wrap { position: relative; height: 280px; }
+    .chart-wrap { position: relative; height: 420px; }
 
     /* Loading */
     .loading {
@@ -272,8 +341,19 @@ async function main() {
   const prevDate = dates[dates.length - 2];
   const prev = prevDate && dailyData[prevDate] ? dailyData[prevDate] : {};
 
-  // Today's scorers
-  const scorers = latest.filter(r => r.points > 0).sort((a, b) => b.points - a.points);
+  // HBP players — last player listed per team in the CSV
+  const hbpPlayers = {};
+  for (const r of latest) { hbpPlayers[r.team] = r; }
+
+  // Today's scorers — diff today vs yesterday to get only points earned today
+  const prevRows = prevDate ? await fetchCSV(RAW + `points_${prevDate}.csv`) : null;
+  const prevPlayerPts = {};
+  if (prevRows) { for (const r of prevRows) prevPlayerPts[r.player] = r.points; }
+
+  const scorers = latest
+    .map(r => ({ ...r, todayPts: r.points - (prevPlayerPts[r.player] || 0) }))
+    .filter(r => r.todayPts > 0)
+    .sort((a, b) => b.todayPts - a.todayPts);
 
   // Build HTML
   const standingsHTML = sorted.map(([team, pts], i) => {
@@ -301,23 +381,75 @@ async function main() {
           <div class="scorer-name">${r.player}</div>
           <div class="scorer-team">${r.team}</div>
         </div>
-        <div class="scorer-pts" style="color:${TEAM_COLORS[r.team] || '#888'}">+${r.points}</div>
+        <div class="scorer-pts" style="color:${TEAM_COLORS[r.team] || '#888'}">+${r.todayPts}</div>
       </div>`).join('')
     : '<div class="empty">No points scored today yet</div>';
 
-  // Chart datasets
+  // Preload logo images for chart plugin
+  const logoImages = {};
+  await Promise.all(Object.entries(TEAM_LOGOS).map(([team, src]) => new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { logoImages[team] = img; resolve(); };
+    img.onerror = resolve;
+    img.src = src;
+  })));
+
+  // Full season date range
+  const SEASON_START = '2026-03-26';
+  const ALL_STAR_DATE = '2026-07-13';
+  const SEASON_END   = '2026-09-27';
+  const seasonDates  = getDates(SEASON_START, SEASON_END);
+
+  // Chart datasets — null for dates with no data yet so line stops at today
   const teams = Object.keys(TEAM_COLORS);
-  const chartDates = dates.filter(d => dailyData[d]);
   const datasets = teams.map(team => ({
     label: team,
-    data: chartDates.map(d => dailyData[d]?.[team] || 0),
+    data: seasonDates.map(d => dailyData[d] ? (dailyData[d][team] ?? null) : null),
     borderColor: TEAM_COLORS[team],
-    backgroundColor: TEAM_COLORS[team] + '22',
-    borderWidth: 2.5,
-    pointRadius: 3,
+    borderWidth: 3,
+    pointRadius: 0,
+    pointHoverRadius: 4,
     tension: 0.3,
     fill: false,
+    spanGaps: false,
   }));
+
+  // Plugin: draw circular team logos at the last non-null data point of each line
+  const logoPlugin = {
+    id: 'logoPlugin',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      chart.data.datasets.forEach((dataset, i) => {
+        const meta = chart.getDatasetMeta(i);
+        if (!meta.visible) return;
+        const img = logoImages[dataset.label];
+        if (!img) return;
+        // Find last non-null point
+        let lastPoint = null;
+        for (let j = dataset.data.length - 1; j >= 0; j--) {
+          if (dataset.data[j] !== null && dataset.data[j] !== undefined) {
+            lastPoint = meta.data[j];
+            break;
+          }
+        }
+        if (!lastPoint) return;
+        const x = lastPoint.x;
+        const y = lastPoint.y;
+        const r = 20;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, r + 2, 0, Math.PI * 2);
+        ctx.fillStyle = dataset.borderColor;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
+        ctx.restore();
+      });
+    }
+  };
 
   document.getElementById('app').innerHTML = `
     <div class="card">
@@ -327,7 +459,34 @@ async function main() {
 
     <div class="card">
       <h2>Today's Dingers</h2>
-      ${scorersHTML}
+      <div class="scorers-wrapper" id="scorers-wrapper">
+        ${scorersHTML}
+      </div>
+      <button class="expand-btn" id="expand-btn"></button>
+    </div>
+
+    <div class="card full">
+      <h2>HBP Players <span style="font-size:0.75rem;font-family:'Inter',sans-serif;font-weight:400;color:var(--muted);letter-spacing:0.03em;text-transform:none;">— 3 pts / HBP</span></h2>
+      <div class="hbp-grid">
+        ${sorted.map(([team]) => {
+          const p = hbpPlayers[team];
+          const color = TEAM_COLORS[team] || '#888';
+          const logoSrc = TEAM_LOGOS[team];
+          const logoEl = logoSrc
+            ? `<img class="hbp-logo" src="${logoSrc}" alt="${team}" style="border-color:${color}" />`
+            : `<div class="hbp-logo-fallback" style="background:${color}"></div>`;
+          const pts = p ? p.points : 0;
+          const hbps = Math.round(pts / 3);
+          return `
+            <div class="hbp-tile">
+              ${logoEl}
+              <div class="hbp-team">${team}</div>
+              <div class="hbp-player">${p ? p.player : '—'}</div>
+              <div class="hbp-pts" style="color:${color}">${pts} pts</div>
+              <div class="hbp-count">${hbps} HBP</div>
+            </div>`;
+        }).join('')}
+      </div>
     </div>
 
     <div class="card full">
@@ -339,30 +498,88 @@ async function main() {
   `;
 
   document.getElementById('updated').textContent = `Last updated: ${latestDate}`;
+  initExpand(scorers.length);
 
   new Chart(document.getElementById('chart'), {
     type: 'line',
-    data: { labels: chartDates.map(d => d.slice(5)), datasets },
+    data: { labels: seasonDates.map(d => d.slice(5)), datasets },
+    plugins: [logoPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 30, right: 72, bottom: 0, left: 0 } },
       plugins: {
-        legend: {
-          labels: { color: '#6b7694', font: { family: 'Inter', size: 12 } }
+        legend: { display: false },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          filter: item => item.parsed.y !== null,
+          backgroundColor: '#161b25',
+          borderColor: '#252d3d',
+          borderWidth: 1,
+          titleColor: '#6b7694',
+          bodyColor: '#e8eaf0',
+          padding: 12,
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} pts`
+          }
         },
-        tooltip: { mode: 'index', intersect: false }
+        annotation: {
+          annotations: {
+            openingDay: {
+              type: 'line', scaleID: 'x', value: '03-26',
+              borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1, borderDash: [4, 4],
+              label: { display: true, content: 'Opening Day', position: 'start',
+                color: '#6b7694', backgroundColor: 'transparent',
+                font: { size: 10, family: 'Inter' }, padding: { x: 4, y: 2 } }
+            },
+            allStar: {
+              type: 'line', scaleID: 'x', value: '07-13',
+              borderColor: 'rgba(255,209,102,0.3)', borderWidth: 1, borderDash: [4, 4],
+              label: { display: true, content: 'All-Star Break', position: 'start',
+                color: '#6b7694', backgroundColor: 'transparent',
+                font: { size: 10, family: 'Inter' }, padding: { x: 4, y: 2 } }
+            },
+            seasonEnd: {
+              type: 'line', scaleID: 'x', value: '09-27',
+              borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1, borderDash: [4, 4],
+              label: { display: true, content: 'Season End', position: 'start',
+                color: '#6b7694', backgroundColor: 'transparent',
+                font: { size: 10, family: 'Inter' }, padding: { x: 4, y: 2 } }
+            }
+          }
+        }
       },
       scales: {
         x: {
-          grid: { color: '#252d3d' },
-          ticks: { color: '#6b7694', font: { family: 'Inter', size: 11 } }
+          grid: { color: '#1e2535' },
+          ticks: { color: '#6b7694', font: { family: 'Inter', size: 11 }, maxTicksLimit: 10, maxRotation: 0 },
+          title: { display: true, text: 'Date', color: '#6b7694', font: { family: 'Inter', size: 11 }, padding: { top: 8 } }
         },
         y: {
-          grid: { color: '#252d3d' },
+          grid: { color: '#1e2535' },
           ticks: { color: '#6b7694', font: { family: 'Inter', size: 11 }, stepSize: 1 },
-          beginAtZero: true
+          beginAtZero: true,
+          grace: '20%',
+          title: { display: true, text: 'Points', color: '#6b7694', font: { family: 'Inter', size: 11 }, padding: { bottom: 8 } }
         }
       }
+    }
+  });
+}
+
+function initExpand(total) {
+  const wrapper = document.getElementById('scorers-wrapper');
+  const btn = document.getElementById('expand-btn');
+  if (!wrapper || !btn || total === 0) return;
+  requestAnimationFrame(() => {
+    if (wrapper.scrollHeight > wrapper.clientHeight + 4) {
+      btn.style.display = 'block';
+      btn.textContent = `Show all ${total} ↓`;
+      btn.onclick = () => {
+        const expanded = wrapper.classList.toggle('expanded');
+        btn.textContent = expanded ? 'Show less ↑' : `Show all ${total} ↓`;
+      };
     }
   });
 }
