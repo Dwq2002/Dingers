@@ -1,4 +1,4 @@
-name: Daily Notebook Run
+name: Daily Notebook Run Test
 
 permissions:
   contents: write
