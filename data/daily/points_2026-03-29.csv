@@ -1,8 +1,8 @@
 player,points,team,date
-Aaron Judge,2,Kid Named Dinger,2026-03-29
-Eugenio Suárez,1,Kid Named Dinger,2026-03-29
-Yordan Alvarez,1,Kid Named Dinger,2026-03-29
-Shea Langeliers,3,Kid Named Dinger,2026-03-29
+Aaron Judge,0,Kid Named Dinger,2026-03-29
+Eugenio Suárez,0,Kid Named Dinger,2026-03-29
+Yordan Alvarez,0,Kid Named Dinger,2026-03-29
+Shea Langeliers,0,Kid Named Dinger,2026-03-29
 Jo Adell,0,Kid Named Dinger,2026-03-29
 Willy Adames,0,Kid Named Dinger,2026-03-29
 Jose Altuve,0,Kid Named Dinger,2026-03-29
@@ -12,39 +12,39 @@ Michael Busch,0,Kid Named Dinger,2026-03-29
 Randy Arozarena,0,Kid Named Dinger,2026-03-29
 Shohei Ohtani,0,Bo,2026-03-29
 Pete Alonso,0,Bo,2026-03-29
-Munetaka Murakami,3,Bo,2026-03-29
+Munetaka Murakami,0,Bo,2026-03-29
 Ronald Acuña Jr.,0,Bo,2026-03-29
 Manny Machado,0,Bo,2026-03-29
 Julio Rodríguez,0,Bo,2026-03-29
 Francisco Lindor,0,Bo,2026-03-29
-Brandon Lowe,3,Bo,2026-03-29
+Brandon Lowe,0,Bo,2026-03-29
 Taylor Ward,0,Bo,2026-03-29
-Salvador Perez,1,Bo,2026-03-29
+Salvador Perez,0,Bo,2026-03-29
 Ty France,0,Bo,2026-03-29
 Juan Soto,0,Swank,2026-03-29
 Nick Kurtz,0,Swank,2026-03-29
 José Ramírez,0,Swank,2026-03-29
-James Wood,1,Swank,2026-03-29
-Ketel Marte,1,Swank,2026-03-29
+James Wood,0,Swank,2026-03-29
+Ketel Marte,0,Swank,2026-03-29
 Pete Crow-Armstrong,0,Swank,2026-03-29
-Trevor Story,1,Swank,2026-03-29
+Trevor Story,0,Swank,2026-03-29
 Adley Rutschman,0,Swank,2026-03-29
-George Springer,1,Swank,2026-03-29
+George Springer,0,Swank,2026-03-29
 Rafael Devers,0,Swank,2026-03-29
-CJ Abrams,3,Swank,2026-03-29
+CJ Abrams,0,Swank,2026-03-29
 Cal Raleigh,0,Swank's Tanks,2026-03-29
 Junior Caminero,0,Swank's Tanks,2026-03-29
 Brent Rooker,0,Swank's Tanks,2026-03-29
 Gunnar Henderson,0,Swank's Tanks,2026-03-29
 Bryce Harper,0,Swank's Tanks,2026-03-29
 Vladimir Guerrero Jr.,0,Swank's Tanks,2026-03-29
-Nolan Gorman,1,Swank's Tanks,2026-03-29
+Nolan Gorman,0,Swank's Tanks,2026-03-29
 Wyatt Langford,0,Swank's Tanks,2026-03-29
 Jackson Merrill,0,Swank's Tanks,2026-03-29
 Corbin Carroll,0,Swank's Tanks,2026-03-29
 Caleb Durbin,0,Swank's Tanks,2026-03-29
 Bobby Witt Jr.,0,Swank's Shanks,2026-03-29
-Kyle Schwarber,1,Swank's Shanks,2026-03-29
+Kyle Schwarber,0,Swank's Shanks,2026-03-29
 Jazz Chisholm Jr.,0,Swank's Shanks,2026-03-29
 Riley Greene,0,Swank's Shanks,2026-03-29
 Hunter Goodman,0,Swank's Shanks,2026-03-29
@@ -53,4 +53,4 @@ Vinnie Pasquantino,0,Swank's Shanks,2026-03-29
 Byron Buxton,0,Swank's Shanks,2026-03-29
 Seiya Suzuki,0,Swank's Shanks,2026-03-29
 Carlos Correa,0,Swank's Shanks,2026-03-29
-Willson Contreras,3,Swank's Shanks,2026-03-29
+Willson Contreras,0,Swank's Shanks,2026-03-29
