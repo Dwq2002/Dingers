@@ -1,0 +1,52 @@
+name: Daily Notebook Run
+
+permissions:
+  contents: write
+
+
+on:
+  schedule:
+    - cron: "0 11 * * *"  # 13:00 UTC = 8:00am America/Chicago during CDT
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install papermill jupyter nbconvert
+
+      - name: Execute notebook (inject date)
+        run: papermill Dingers_2026.ipynb output.ipynb -p RUN_DATE "$(date -u +%F)"
+
+      - name: Upload executed notebook (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: executed-notebook
+          path: output.ipynb
+
+      - name: Export summary to env
+        run: |
+          DELIMITER=$(openssl rand -hex 16)
+          echo "SUMMARY<<${DELIMITER}" >> "$GITHUB_ENV"
+          cat summary.html >> "$GITHUB_ENV"
+          echo "" >> "$GITHUB_ENV"
+          echo "${DELIMITER}" >> "$GITHUB_ENV"
+
+      - name: Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: Daily Dingers Report # <-- guaranteed defined
+          to: "qwd2002@gmail.com"
+          from: "DingerBot445 <${{ secrets.MAIL_USER }}>"
+          secure: false
+          html_body: ${{ env.SUMMARY }}  
