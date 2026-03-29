@@ -5,9 +5,6 @@ permissions:
 
 
 on:
-  push:
-    branches:
-      - copilot/check-email-blank-body-issue
   schedule:
     - cron: "0 10 * * *"  # 13:00 UTC = 8:00am America/Chicago during CDT
   workflow_dispatch:
@@ -22,7 +19,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: pip install papermill jupyter nbconvert
+      - run: pip install papermill jupyter nbconvert Pillow
 
       - name: Execute notebook (inject date)
         run: papermill Dingers_2026.ipynb output.ipynb -p RUN_DATE "$(date -u +%F)"
