@@ -18,6 +18,7 @@
       --muted: #6b7694;
       --green: #00c47d;
       --gold: #ffd166;
+      --red: #e5484d;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -515,7 +516,11 @@
       border: 1px solid var(--border);
       flex-shrink: 0;
     }
-    .proj-name { font-weight: 600; font-size: 0.88rem; min-width: 140px; }
+    .proj-name { font-weight: 600; font-size: 0.88rem; width: 140px; flex-shrink: 0; }
+    .proj-logo-sp { width: 26px; flex-shrink: 0; }
+
+    /* One meter per outcome: takes it, or comes last. */
+    .proj-meter { flex: 1; display: flex; align-items: center; gap: 9px; min-width: 0; }
     .proj-bar-wrap {
       display: block;
       flex: 1;
@@ -523,30 +528,46 @@
       background: var(--grid-line);
       border-radius: 4px;
       overflow: hidden;
-      min-width: 60px;
+      min-width: 40px;
     }
     /* Must be block: an inline span ignores width, leaving an empty track. */
     .proj-bar { display: block; height: 100%; border-radius: 4px; }
     .proj-pct {
       font-weight: 800;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       font-variant-numeric: tabular-nums;
-      min-width: 52px;
+      width: 44px;
       text-align: right;
+      flex-shrink: 0;
     }
+    .proj-pct.last { color: var(--red); }
+    .proj-pct.win { color: var(--text); }
     .proj-final {
       font-size: 0.75rem;
       color: var(--muted);
       font-variant-numeric: tabular-nums;
-      min-width: 96px;
+      width: 86px;
       text-align: right;
+      flex-shrink: 0;
     }
-    .proj-final b { color: var(--text); font-weight: 700; }
+    .proj-final b { color: var(--text); font-weight: 700; font-size: 0.82rem; }
     .proj-note { font-size: 0.7rem; color: var(--muted); margin: 12px 0 0; line-height: 1.5; }
 
-    @media (max-width: 560px) {
-      .proj-name { min-width: 0; flex: 1; }
+    .proj-head { border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    .proj-head .proj-final { font-size: 0.62rem; }
+    .proj-hd {
+      font-size: 0.62rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 700px) {
+      .proj-name { width: auto; flex: 1; min-width: 0; }
       .proj-bar-wrap { display: none; }
+      .proj-meter { flex: 0 0 auto; }
     }
 
     /* ---------- Past champions ---------- */
@@ -1355,20 +1376,24 @@ function projectionModel() {
     return { name: team.name, current: total, arms };
   });
 
-  const wins = {}, sum = {};
-  TEAMS.forEach(t => { wins[t.name] = 0; sum[t.name] = 0; });
+  // Only first and last matter: one wins, one gets the punishment.
+  const wins = {}, lasts = {}, sum = {};
+  TEAMS.forEach(t => { wins[t.name] = 0; lasts[t.name] = 0; sum[t.name] = 0; });
 
   for (let i = 0; i < SIMS; i++) {
-    let best = -Infinity;
+    let best = -Infinity, worst = Infinity;
     const finals = teams.map(({ name, current, arms }) => {
       let tot = current;
       for (const a of arms) tot += a.isHBP ? poissonSample(a.lambda) * 3 : poissonSample(a.lambda);
       sum[name] += tot;
       if (tot > best) best = tot;
+      if (tot < worst) worst = tot;
       return { name, tot };
     });
     const top = finals.filter(f => f.tot === best);
-    top.forEach(f => { wins[f.name] += 1 / top.length; });   // split ties
+    const bot = finals.filter(f => f.tot === worst);
+    top.forEach(f => { wins[f.name] += 1 / top.length; });    // split ties
+    bot.forEach(f => { lasts[f.name] += 1 / bot.length; });
   }
 
   return {
@@ -1378,6 +1403,7 @@ function projectionModel() {
       current: t.current,
       proj: Math.round(sum[t.name] / SIMS),
       pct: wins[t.name] / SIMS,
+      lastPct: lasts[t.name] / SIMS,
     })).sort((a, b) => b.pct - a.pct || b.proj - a.proj),
   };
 }
@@ -1388,24 +1414,38 @@ function renderProjection() {
   const colorOf = Object.fromEntries(TEAMS.map(t => [t.name, t.color]));
 
   document.getElementById('proj-sub').textContent = remaining > 0
-    ? `${SIMS.toLocaleString()} simulations of the ${remaining} days left`
+    ? `${SIMS.toLocaleString()} simulated seasons \u00b7 ${remaining} days left`
     : 'season complete';
 
-  list.innerHTML = rows.map(r => {
-    const pct = r.pct >= 0.995 ? '100%'
-      : r.pct < 0.005 && r.pct > 0 ? '<1%'
-      : `${Math.round(r.pct * 100)}%`;
-    const logo = TEAM_LOGOS[r.name];
-    return `<div class="proj-row">
-      ${logo ? `<img class="proj-logo" src="${esc(logo)}" alt="" loading="lazy" />` : ''}
+  const fmt = p => p >= 0.995 ? '100%'
+    : p >= 0.005 ? `${Math.round(p * 100)}%`
+    : p > 0 ? '<1%' : '0%';
+  const width = p => Math.max(p * 100, p > 0 ? 1.5 : 0).toFixed(1);
+
+  const meter = (p, color, cls) => `<span class="proj-meter">
+        <span class="proj-bar-wrap"><span class="proj-bar" style="width:${width(p)}%;background:${color}"></span></span>
+        <span class="proj-pct ${cls}">${fmt(p)}</span>
+      </span>`;
+
+  list.innerHTML =
+    `<div class="proj-row proj-head">
+      <span class="proj-logo-sp"></span>
+      <span class="proj-name"></span>
+      <span class="proj-meter"><span class="proj-hd">🏆 wins it</span></span>
+      <span class="proj-meter"><span class="proj-hd">💀 last place</span></span>
+      <span class="proj-final">projected</span>
+    </div>` +
+    rows.map(r => {
+      const logo = TEAM_LOGOS[r.name];
+      return `<div class="proj-row">
+      ${logo ? `<img class="proj-logo" src="${esc(logo)}" alt="" loading="lazy" />`
+             : '<span class="proj-logo-sp"></span>'}
       <span class="proj-name">${esc(r.name)}</span>
-      <span class="proj-bar-wrap">
-        <span class="proj-bar" style="width:${Math.max(r.pct * 100, r.pct > 0 ? 1.5 : 0).toFixed(1)}%;background:${colorOf[r.name]}"></span>
-      </span>
-      <span class="proj-pct">${pct}</span>
-      <span class="proj-final">${r.current} now &rarr; <b>${r.proj}</b></span>
+      ${meter(r.pct, colorOf[r.name], 'win')}
+      ${meter(r.lastPct, 'var(--red)', 'last')}
+      <span class="proj-final">${r.current} &rarr; <b>${r.proj}</b></span>
     </div>`;
-  }).join('');
+    }).join('');
 
   document.getElementById('proj-note').innerHTML =
     'Each player is projected at his own scoring rate this season, drawn forward '
