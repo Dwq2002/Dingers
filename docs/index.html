@@ -431,14 +431,72 @@
     .badge.hbp { background: rgba(255,209,102,0.12); color: var(--gold); }
     .badge.new { background: rgba(0,196,125,0.12); color: var(--green); }
     .badge.date { background: rgba(107,118,148,0.12); color: var(--muted); text-transform: none; letter-spacing: 0; }
-
-    .former-label {
-      font-size: 0.72rem;
+    .badge.pos {
+      background: rgba(107,118,148,0.16);
       color: var(--muted);
+      min-width: 34px;
+      text-align: center;
+      letter-spacing: 0.04em;
+    }
+
+    /* Frozen points the slot keeps, and what the new player has added since. */
+    .roster-player .p-sub { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .roster-player .p-gain {
+      font-size: 0.75rem;
+      color: var(--green);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------- Positional breakdown ---------- */
+    .positions-card { max-width: 1100px; margin: 20px auto 0; }
+    .pos-table-wrap { overflow-x: auto; }
+    .pos-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .pos-table th, .pos-table td {
+      padding: 9px 10px;
+      text-align: right;
+      border-bottom: 1px solid var(--grid-line);
+      white-space: nowrap;
+      vertical-align: top;
+    }
+    .pos-table thead th {
+      color: var(--muted);
+      font-size: 0.7rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      margin: 10px 0 2px;
+      border-bottom: 1px solid var(--border);
     }
+    .pos-table th:first-child, .pos-table td:first-child {
+      text-align: left;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+    }
+    .pos-table tbody tr:hover { background: #1a2130; }
+    .pos-table td.best { color: var(--gold); }
+    .pos-table td.best .pos-pts { font-weight: 800; }
+    .pos-table .pos-pts { font-weight: 700; }
+    .pos-table tfoot td {
+      border-top: 1px solid var(--border);
+      border-bottom: none;
+      font-weight: 800;
+      padding-top: 11px;
+    }
+    .pos-player {
+      display: block;
+      font-size: 0.68rem;
+      color: var(--muted);
+      font-weight: 400;
+      margin-top: 2px;
+      letter-spacing: 0;
+    }
+    .pos-player .struck { text-decoration: line-through; }
 
     /* ---------- Misc ---------- */
     .loading {
@@ -497,6 +555,11 @@
   <div class="card rosters-card">
     <h2>Team Rosters <span class="sub">— click a team to expand &bull; swapped players struck through</span></h2>
     <div id="rosters"></div>
+  </div>
+
+  <div class="card positions-card">
+    <h2>Positional Breakdown <span class="sub">— points by draft position &bull; best at each spot highlighted</span></h2>
+    <div class="pos-table-wrap"><table class="pos-table" id="pos-table"></table></div>
   </div>
 </div>
 
@@ -575,6 +638,7 @@ const state = {
   dailyData: {},      // date -> rows
   dailyTotals: {},    // date -> {team: pts}
   swaps: [],          // rows from data/swaps_2026.csv
+  positions: {},      // player -> draft position
   latestDate: null,
   rangeStart: null,
   rangeEnd: null,
@@ -594,6 +658,15 @@ async function main() {
   }
 
   state.swaps = (await fetchCSV(RAW_DATA + 'swaps_2026.csv')) || [];
+
+  // Draft positions. Position belongs to the roster slot, so a swapped-in
+  // player inherits the position of the player he replaced.
+  const posRows = (await fetchCSV(RAW_DATA + 'positions_2026.csv')) || [];
+  state.positions = {};
+  posRows.forEach(r => { state.positions[r.player] = r.position; });
+  state.swaps.forEach(s => {
+    if (state.positions[s.out_player]) state.positions[s.in_player] = state.positions[s.out_player];
+  });
 
   const latestDate = latest[0]?.date || SEASON_START;
   const allDates = getDates(SEASON_START, latestDate);
@@ -625,6 +698,7 @@ async function main() {
   initFilters();
   renderRace();
   renderRosters();
+  renderPositions();
 
   document.getElementById('race-section').style.display = 'block';
   document.getElementById('updated').textContent = `Last updated: ${latestDate}`;
@@ -1029,6 +1103,9 @@ function renderRaceTable() {
 }
 
 // ---------- Rosters & swap detection ----------
+// One entry per roster slot, in roster order. A swapped slot carries both the
+// frozen player and his replacement, and is worth the sum of the two: the slot
+// keeps what the old player earned and grows as the new one homers.
 function computeRosterInfo() {
   const rosterOn = (date, team) =>
     (state.dailyData[date] || []).filter(r => r.team === team);
@@ -1037,14 +1114,40 @@ function computeRosterInfo() {
     // Swaps come from the ledger rather than being inferred from the data: a
     // swapped-out player keeps a frozen row in the CSV, so he never disappears.
     const swaps = state.swaps.filter(s => s.team === t.name);
-    const frozenNames = new Set(swaps.map(s => s.out_player));
+    const swapIn = {}, swapOut = {};
+    swaps.forEach(s => { swapIn[s.in_player] = s; swapOut[s.out_player] = s; });
 
     const allRows = rosterOn(state.latestDate, t.name);
-    const activeRows = allRows.filter(r => !frozenNames.has(r.player));
-    const frozenRows = allRows.filter(r => frozenNames.has(r.player));
-    // Frozen players still count for the team; they just stopped accruing.
+    const rowFor = {};
+    allRows.forEach(r => { rowFor[r.player] = r; });
     const total = allRows.reduce((s, r) => s + r.points, 0);
-    return { team: t, latestRows: activeRows, frozenRows, swaps, total };
+
+    const slot = (player, pts, s, outPts) => ({
+      player, pts, pos: state.positions[player] || '',
+      out: s ? s.out_player : null,
+      outPts: outPts || 0,
+      swapDate: s ? s.swap_date : null,
+      total: pts + (outPts || 0),
+    });
+
+    const slots = [];
+    allRows.forEach(r => {
+      const asOut = swapOut[r.player];
+      if (asOut) {
+        // Frozen player. His slot renders wherever his replacement's row is; if
+        // the daily CSV hasn't picked the swap up yet, render the slot here so
+        // the roster still adds up to the team total.
+        if (!rowFor[asOut.in_player]) slots.push(slot(asOut.in_player, 0, asOut, r.points));
+        return;
+      }
+      const asIn = swapIn[r.player];
+      const outPts = asIn
+        ? (rowFor[asIn.out_player]?.points ?? (Number(asIn.out_points_frozen) || 0))
+        : 0;
+      slots.push(slot(r.player, r.points, asIn, outPts));
+    });
+
+    return { team: t, slots, swaps, total };
   });
 }
 
@@ -1057,13 +1160,10 @@ function renderRosters() {
   const order = state.sortedTeams || TEAMS.map(t => t.name);
   infos.sort((a, b) => order.indexOf(a.team.name) - order.indexOf(b.team.name));
 
-  infos.forEach(({ team, latestRows, frozenRows, swaps, total }, idx) => {
+  infos.forEach(({ team, slots, swaps, total }, idx) => {
     const details = document.createElement('details');
     details.className = 'roster';
     if (idx === 0) details.open = true;
-
-    const swapInFor = {};   // new player -> swap record
-    swaps.forEach(s => { swapInFor[s.in_player] = s; });
 
     const summary = document.createElement('summary');
     const logoSrc = TEAM_LOGOS[team.name];
@@ -1080,56 +1180,79 @@ function renderRosters() {
     const body = document.createElement('div');
     body.className = 'roster-body';
 
-    latestRows.forEach((r, i) => {
-      const isHBP = i === latestRows.length - 1;
-      const swap = swapInFor[r.player];
+    slots.forEach((s, i) => {
+      const isHBP = i === slots.length - 1;
       const row = document.createElement('div');
       row.className = 'roster-player';
+      const pos = s.pos ? `<span class="badge pos">${esc(s.pos)}</span>` : '';
+      const hbp = isHBP ? '<span class="badge hbp">HBP</span>' : '';
 
-      if (swap) {
+      if (s.out) {
+        // Slot total = what the frozen player banked + what the new one has added.
         row.innerHTML = `
-          <span class="p-out">${esc(swap.out_player)}</span>
+          ${pos}
+          <span class="p-out">${esc(s.out)}</span>
+          <span class="p-sub">${s.outPts}</span>
           <span class="p-arrow">→</span>
-          <span class="p-name">${esc(r.player)}</span>
-          <span class="badge new">Swap</span>
-          <span class="badge date">${fmtDate(swap.swap_date)}</span>
-          ${isHBP ? '<span class="badge hbp">HBP</span>' : ''}
+          <span class="p-name">${esc(s.player)}</span>
+          <span class="p-gain">+${s.pts}</span>
+          <span class="badge date">${fmtDate(s.swapDate)}</span>
+          ${hbp}
           <span class="p-fill"></span>
-          <span class="p-pts">${r.points}</span>
+          <span class="p-pts">${s.total}</span>
           <span class="p-pts-label">pts</span>`;
       } else {
         row.innerHTML = `
-          <span class="p-name">${esc(r.player)}</span>
-          ${isHBP ? '<span class="badge hbp">HBP</span>' : ''}
+          ${pos}
+          <span class="p-name">${esc(s.player)}</span>
+          ${hbp}
           <span class="p-fill"></span>
-          <span class="p-pts">${r.points}</span>
+          <span class="p-pts">${s.total}</span>
           <span class="p-pts-label">pts</span>`;
       }
       body.appendChild(row);
     });
 
-    if (frozenRows.length) {
-      const label = document.createElement('div');
-      label.className = 'former-label';
-      label.textContent = 'Swapped out — points locked, still counted';
-      body.appendChild(label);
-      frozenRows.forEach(r => {
-        const s = swaps.find(x => x.out_player === r.player);
-        const row = document.createElement('div');
-        row.className = 'roster-player';
-        row.innerHTML = `
-          <span class="p-out">${esc(r.player)}</span>
-          ${s ? `<span class="badge date">${fmtDate(s.swap_date)}</span>` : ''}
-          <span class="p-fill"></span>
-          <span class="p-pts">${r.points}</span>
-          <span class="p-pts-label">pts</span>`;
-        body.appendChild(row);
-      });
-    }
-
     details.appendChild(body);
     container.appendChild(details);
   });
+}
+
+// ---------- Positional breakdown ----------
+const POS_ORDER = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'UTIL', 'HBP'];
+
+function renderPositions() {
+  const infos = computeRosterInfo();
+  const order = state.sortedTeams || TEAMS.map(t => t.name);
+  infos.sort((a, b) => order.indexOf(a.team.name) - order.indexOf(b.team.name));
+
+  const at = {};   // position -> team name -> slot
+  infos.forEach(({ team, slots }) => {
+    slots.forEach(s => { if (s.pos) (at[s.pos] = at[s.pos] || {})[team.name] = s; });
+  });
+
+  const head = `<thead><tr><th>Pos</th>${infos
+    .map(i => `<th>${esc(i.team.name)}</th>`).join('')}</tr></thead>`;
+
+  const body = POS_ORDER.filter(p => at[p]).map(pos => {
+    const cells = infos.map(i => at[pos][i.team.name]);
+    const best = Math.max(...cells.map(c => (c ? c.total : -1)));
+    const tds = cells.map(c => {
+      if (!c) return '<td>—</td>';
+      const name = c.out
+        ? `<span class="struck">${esc(c.out)}</span> → ${esc(c.player)}`
+        : esc(c.player);
+      return `<td class="${c.total === best && best > 0 ? 'best' : ''}">`
+           + `<span class="pos-pts">${c.total}</span>`
+           + `<span class="pos-player">${name}</span></td>`;
+    }).join('');
+    return `<tr><td>${pos}</td>${tds}</tr>`;
+  }).join('');
+
+  const foot = `<tfoot><tr><td>Total</td>${infos
+    .map(i => `<td><span class="pos-pts">${i.total}</span></td>`).join('')}</tr></tfoot>`;
+
+  document.getElementById('pos-table').innerHTML = head + `<tbody>${body}</tbody>` + foot;
 }
 
 // ---------- Expand button for Today's Dingers ----------
