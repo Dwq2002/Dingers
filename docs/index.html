@@ -504,6 +504,7 @@
 
 <script>
 const RAW = 'https://raw.githubusercontent.com/Dwq2002/Dingers/main/data/daily/';
+const RAW_DATA = 'https://raw.githubusercontent.com/Dwq2002/Dingers/main/data/';
 const RAW_ASSETS = 'https://raw.githubusercontent.com/Dwq2002/Dingers/main/assets/team_icons/';
 
 // Fixed team order — colors follow the team, never its rank.
@@ -573,6 +574,7 @@ const state = {
   dataDates: [],      // dates that actually have data, ascending
   dailyData: {},      // date -> rows
   dailyTotals: {},    // date -> {team: pts}
+  swaps: [],          // rows from data/swaps_2026.csv
   latestDate: null,
   rangeStart: null,
   rangeEnd: null,
@@ -590,6 +592,8 @@ async function main() {
       '<div class="loading" style="grid-column:1/-1">Could not load data.</div>';
     return;
   }
+
+  state.swaps = (await fetchCSV(RAW_DATA + 'swaps_2026.csv')) || [];
 
   const latestDate = latest[0]?.date || SEASON_START;
   const allDates = getDates(SEASON_START, latestDate);
@@ -1026,37 +1030,21 @@ function renderRaceTable() {
 
 // ---------- Rosters & swap detection ----------
 function computeRosterInfo() {
-  const dates = state.dataDates;
   const rosterOn = (date, team) =>
     (state.dailyData[date] || []).filter(r => r.team === team);
 
   return TEAMS.map(t => {
-    // Track membership day over day to detect swaps.
-    const swaps = []; // {out, in, date}
-    let prevNames = rosterOn(dates[0], t.name).map(r => r.player);
+    // Swaps come from the ledger rather than being inferred from the data: a
+    // swapped-out player keeps a frozen row in the CSV, so he never disappears.
+    const swaps = state.swaps.filter(s => s.team === t.name);
+    const frozenNames = new Set(swaps.map(s => s.out_player));
 
-    for (let i = 1; i < dates.length; i++) {
-      const curRows = rosterOn(dates[i], t.name);
-      const curNames = curRows.map(r => r.player);
-      const outs = prevNames.filter(n => !curNames.includes(n));
-      const ins  = curNames.filter(n => !prevNames.includes(n));
-      // Pair drops with adds in slot order; unpaired entries recorded alone.
-      const n = Math.max(outs.length, ins.length);
-      for (let k = 0; k < n; k++) {
-        swaps.push({ out: outs[k] ?? null, in: ins[k] ?? null, date: dates[i] });
-      }
-      prevNames = curNames;
-    }
-
-    // Last recorded points for swapped-out players.
-    const lastPts = {};
-    for (const d of dates) {
-      for (const r of rosterOn(d, t.name)) lastPts[r.player] = r.points;
-    }
-
-    const latestRows = rosterOn(state.latestDate, t.name);
-    const total = latestRows.reduce((s, r) => s + r.points, 0);
-    return { team: t, latestRows, swaps, lastPts, total };
+    const allRows = rosterOn(state.latestDate, t.name);
+    const activeRows = allRows.filter(r => !frozenNames.has(r.player));
+    const frozenRows = allRows.filter(r => frozenNames.has(r.player));
+    // Frozen players still count for the team; they just stopped accruing.
+    const total = allRows.reduce((s, r) => s + r.points, 0);
+    return { team: t, latestRows: activeRows, frozenRows, swaps, total };
   });
 }
 
@@ -1069,17 +1057,13 @@ function renderRosters() {
   const order = state.sortedTeams || TEAMS.map(t => t.name);
   infos.sort((a, b) => order.indexOf(a.team.name) - order.indexOf(b.team.name));
 
-  infos.forEach(({ team, latestRows, swaps, lastPts, total }, idx) => {
+  infos.forEach(({ team, latestRows, frozenRows, swaps, total }, idx) => {
     const details = document.createElement('details');
     details.className = 'roster';
     if (idx === 0) details.open = true;
 
     const swapInFor = {};   // new player -> swap record
-    const unpairedOuts = [];
-    swaps.forEach(s => {
-      if (s.in) swapInFor[s.in] = s;
-      else if (s.out) unpairedOuts.push(s);
-    });
+    swaps.forEach(s => { swapInFor[s.in_player] = s; });
 
     const summary = document.createElement('summary');
     const logoSrc = TEAM_LOGOS[team.name];
@@ -1102,13 +1086,13 @@ function renderRosters() {
       const row = document.createElement('div');
       row.className = 'roster-player';
 
-      if (swap && swap.out) {
+      if (swap) {
         row.innerHTML = `
-          <span class="p-out">${esc(swap.out)}</span>
+          <span class="p-out">${esc(swap.out_player)}</span>
           <span class="p-arrow">→</span>
           <span class="p-name">${esc(r.player)}</span>
           <span class="badge new">Swap</span>
-          <span class="badge date">${fmtDate(swap.date)}</span>
+          <span class="badge date">${fmtDate(swap.swap_date)}</span>
           ${isHBP ? '<span class="badge hbp">HBP</span>' : ''}
           <span class="p-fill"></span>
           <span class="p-pts">${r.points}</span>
@@ -1116,7 +1100,6 @@ function renderRosters() {
       } else {
         row.innerHTML = `
           <span class="p-name">${esc(r.player)}</span>
-          ${swap ? `<span class="badge new">New</span><span class="badge date">${fmtDate(swap.date)}</span>` : ''}
           ${isHBP ? '<span class="badge hbp">HBP</span>' : ''}
           <span class="p-fill"></span>
           <span class="p-pts">${r.points}</span>
@@ -1125,19 +1108,20 @@ function renderRosters() {
       body.appendChild(row);
     });
 
-    if (unpairedOuts.length) {
+    if (frozenRows.length) {
       const label = document.createElement('div');
       label.className = 'former-label';
-      label.textContent = 'Dropped';
+      label.textContent = 'Swapped out — points locked, still counted';
       body.appendChild(label);
-      unpairedOuts.forEach(s => {
+      frozenRows.forEach(r => {
+        const s = swaps.find(x => x.out_player === r.player);
         const row = document.createElement('div');
         row.className = 'roster-player';
         row.innerHTML = `
-          <span class="p-out">${esc(s.out)}</span>
-          <span class="badge date">${fmtDate(s.date)}</span>
+          <span class="p-out">${esc(r.player)}</span>
+          ${s ? `<span class="badge date">${fmtDate(s.swap_date)}</span>` : ''}
           <span class="p-fill"></span>
-          <span class="p-pts">${lastPts[s.out] ?? 0}</span>
+          <span class="p-pts">${r.points}</span>
           <span class="p-pts-label">pts</span>`;
         body.appendChild(row);
       });
