@@ -498,6 +498,82 @@
     }
     .pos-player .struck { text-decoration: line-through; }
 
+    /* ---------- Projected finish ---------- */
+    .proj-card { max-width: 1100px; margin: 20px auto 0; }
+    .proj-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--grid-line);
+    }
+    .proj-row:last-child { border-bottom: none; }
+    .proj-logo {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .proj-name { font-weight: 600; font-size: 0.88rem; min-width: 140px; }
+    .proj-bar-wrap {
+      display: block;
+      flex: 1;
+      height: 8px;
+      background: var(--grid-line);
+      border-radius: 4px;
+      overflow: hidden;
+      min-width: 60px;
+    }
+    /* Must be block: an inline span ignores width, leaving an empty track. */
+    .proj-bar { display: block; height: 100%; border-radius: 4px; }
+    .proj-pct {
+      font-weight: 800;
+      font-size: 0.9rem;
+      font-variant-numeric: tabular-nums;
+      min-width: 52px;
+      text-align: right;
+    }
+    .proj-final {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 96px;
+      text-align: right;
+    }
+    .proj-final b { color: var(--text); font-weight: 700; }
+    .proj-note { font-size: 0.7rem; color: var(--muted); margin: 12px 0 0; line-height: 1.5; }
+
+    @media (max-width: 560px) {
+      .proj-name { min-width: 0; flex: 1; }
+      .proj-bar-wrap { display: none; }
+    }
+
+    /* ---------- Past champions ---------- */
+    .champs-card { max-width: 1100px; margin: 20px auto 0; }
+    .champs { display: flex; gap: 10px; flex-wrap: wrap; }
+    .champ {
+      flex: 1 1 140px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 14px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,209,102,0.04);
+    }
+    .champ-cup { font-size: 1.3rem; line-height: 1.4; }
+    .champ-year {
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      font-weight: 700;
+    }
+    .champ-name { font-weight: 700; font-size: 1rem; color: var(--gold); }
+    .champ-open { background: none; border-style: dashed; }
+    .champ-open .champ-name { color: var(--muted); }
+
     /* ---------- Misc ---------- */
     .loading {
       text-align: center;
@@ -560,6 +636,22 @@
   <div class="card positions-card">
     <h2>Positional Breakdown <span class="sub">— points by draft position &bull; best at each spot highlighted</span></h2>
     <div class="pos-table-wrap"><table class="pos-table" id="pos-table"></table></div>
+  </div>
+
+  <div class="card proj-card">
+    <h2>Projected Finish <span class="sub">— <span id="proj-sub"></span></span></h2>
+    <div id="proj-list"></div>
+    <p class="proj-note" id="proj-note"></p>
+  </div>
+
+  <div class="card champs-card">
+    <h2>Past Champions</h2>
+    <div class="champs">
+      <div class="champ"><span class="champ-cup">🏆</span><span class="champ-year">2023</span><span class="champ-name">Ethan</span></div>
+      <div class="champ"><span class="champ-cup">🏆</span><span class="champ-year">2024</span><span class="champ-name">Bo</span></div>
+      <div class="champ"><span class="champ-cup">🏆</span><span class="champ-year">2025</span><span class="champ-name">Swank</span></div>
+      <div class="champ champ-open"><span class="champ-cup">❓</span><span class="champ-year">2026</span><span class="champ-name">TBD</span></div>
+    </div>
   </div>
 </div>
 
@@ -699,6 +791,7 @@ async function main() {
   renderRace();
   renderRosters();
   renderPositions();
+  renderProjection();
 
   document.getElementById('race-section').style.display = 'block';
   document.getElementById('updated').textContent = `Last updated: ${latestDate}`;
@@ -1216,6 +1309,109 @@ function renderRosters() {
     details.appendChild(body);
     container.appendChild(details);
   });
+}
+
+// ---------- Projected finish ----------
+// Monte Carlo. Each player's scoring rate comes from his season to date; we draw
+// Poisson counts for the days left and see who ends up on top. Deliberately
+// simple: no injuries, no schedule, no park factors. It's a toy, not a forecast.
+const SEASON_END = '2026-09-27';   // MLB regular season ends
+const SIMS = 10000;
+
+const daysBetween = (a, b) =>
+  Math.round((new Date(b + 'T12:00:00Z') - new Date(a + 'T12:00:00Z')) / 86400000);
+
+// Knuth. Safe here because every lambda is small (max ~25).
+function poissonSample(lambda) {
+  if (lambda <= 0) return 0;
+  const L = Math.exp(-lambda);
+  let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return k - 1;
+}
+
+function projectionModel() {
+  const elapsed = Math.max(1, daysBetween(state.dataDates[0], state.latestDate));
+  const remaining = Math.max(0, daysBetween(state.latestDate, SEASON_END));
+
+  // Built from the slot model so a swapped-in player is projected from the day
+  // the swap is recorded, rather than only once the notebook has put him in the
+  // daily CSV. A frozen player keeps his points inside the slot total but is
+  // never given an arm, so he can't add anything.
+  const teams = computeRosterInfo().map(({ team, slots, total }) => {
+    const baseline = {};
+    state.swaps.filter(s => s.team === team.name)
+      .forEach(s => { baseline[s.in_player] = Number(s.in_baseline_hr) || 0; });
+
+    const arms = slots.map((s, i) => {
+      const isHBP = i === slots.length - 1;
+      // A swapped-in player's points restart at zero, but his bat did not: his
+      // real production is the pre-swap baseline plus whatever he has added.
+      // Rating him off his reset total would call him a zero-power hitter.
+      const season = s.pts + (baseline[s.player] || 0);
+      const events = isHBP ? season / 3 : season;   // HBP slot scores 3 per plunk
+      return { isHBP, lambda: (events / elapsed) * remaining };
+    });
+    return { name: team.name, current: total, arms };
+  });
+
+  const wins = {}, sum = {};
+  TEAMS.forEach(t => { wins[t.name] = 0; sum[t.name] = 0; });
+
+  for (let i = 0; i < SIMS; i++) {
+    let best = -Infinity;
+    const finals = teams.map(({ name, current, arms }) => {
+      let tot = current;
+      for (const a of arms) tot += a.isHBP ? poissonSample(a.lambda) * 3 : poissonSample(a.lambda);
+      sum[name] += tot;
+      if (tot > best) best = tot;
+      return { name, tot };
+    });
+    const top = finals.filter(f => f.tot === best);
+    top.forEach(f => { wins[f.name] += 1 / top.length; });   // split ties
+  }
+
+  return {
+    elapsed, remaining,
+    rows: teams.map(t => ({
+      name: t.name,
+      current: t.current,
+      proj: Math.round(sum[t.name] / SIMS),
+      pct: wins[t.name] / SIMS,
+    })).sort((a, b) => b.pct - a.pct || b.proj - a.proj),
+  };
+}
+
+function renderProjection() {
+  const { remaining, rows } = projectionModel();
+  const list = document.getElementById('proj-list');
+  const colorOf = Object.fromEntries(TEAMS.map(t => [t.name, t.color]));
+
+  document.getElementById('proj-sub').textContent = remaining > 0
+    ? `${SIMS.toLocaleString()} simulations of the ${remaining} days left`
+    : 'season complete';
+
+  list.innerHTML = rows.map(r => {
+    const pct = r.pct >= 0.995 ? '100%'
+      : r.pct < 0.005 && r.pct > 0 ? '<1%'
+      : `${Math.round(r.pct * 100)}%`;
+    const logo = TEAM_LOGOS[r.name];
+    return `<div class="proj-row">
+      ${logo ? `<img class="proj-logo" src="${esc(logo)}" alt="" loading="lazy" />` : ''}
+      <span class="proj-name">${esc(r.name)}</span>
+      <span class="proj-bar-wrap">
+        <span class="proj-bar" style="width:${Math.max(r.pct * 100, r.pct > 0 ? 1.5 : 0).toFixed(1)}%;background:${colorOf[r.name]}"></span>
+      </span>
+      <span class="proj-pct">${pct}</span>
+      <span class="proj-final">${r.current} now &rarr; <b>${r.proj}</b></span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('proj-note').innerHTML =
+    'Each player is projected at his own scoring rate this season, drawn forward '
+    + `over the remaining ${remaining} days. Swapped-out players are frozen and add nothing; `
+    + 'swapped-in players are rated on their full-season bat, not their reset total. '
+    + 'No injuries, streaks, or matchups. Entertainment only.';
 }
 
 // ---------- Positional breakdown ----------
