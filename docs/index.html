@@ -618,6 +618,12 @@
       .proj-meter { flex: 0 0 auto; }
     }
 
+    /* ---------- Odds over time ---------- */
+    .odds-card { max-width: 1100px; margin: 20px auto 0; }
+    .odds-toggle { margin: 0 0 14px; }
+    .odds-chart-wrap { position: relative; height: 320px; }
+    @media (max-width: 640px) { .odds-chart-wrap { height: 240px; } }
+
     /* ---------- Past champions ---------- */
     .champs-card { max-width: 1100px; margin: 20px auto 0; }
     .champs { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -723,6 +729,24 @@
     <div id="proj-list"></div>
   </div>
 
+  <div class="card odds-card">
+    <h2>Odds Over Time <span class="sub">— how the race has moved</span><span
+        class="info" tabindex="0" role="button" aria-label="How this chart is built">i<span class="info-pop">
+        <b>How this chart is built</b>
+        <span>Every day of the season is replayed with the standings and the roster that actually
+        existed that day, then simulated forward to the end. Each point is "given where everyone
+        stood on that date, how often does this team finish first (or last)?"</span>
+        <span>Talent estimates are today's, so this is a look back with what we know now, not a
+        record of what we'd have said at the time. Every point is computed the same way, so the
+        shape of the race is honest.</span>
+      </span></span></h2>
+    <div class="filter-row odds-toggle" id="odds-toggle" role="group" aria-label="Odds view">
+      <button class="chip active" data-odds="win">🏆 Wins it</button>
+      <button class="chip" data-odds="last">💀 Last place</button>
+    </div>
+    <div class="odds-chart-wrap"><canvas id="odds-chart"></canvas></div>
+  </div>
+
   <div class="card champs-card">
     <h2>Past Champions</h2>
     <div class="champs">
@@ -811,6 +835,9 @@ const state = {
   swaps: [],          // rows from data/swaps_2026.csv
   positions: {},      // player -> draft position
   projections: {},    // player -> rest-of-season projection row
+  oddsHistory: [],    // rows from data/odds_history_2026.csv
+  oddsView: 'win',
+  oddsChart: null,
   latestDate: null,
   rangeStart: null,
   rangeEnd: null,
@@ -833,6 +860,8 @@ async function main() {
 
   // Draft positions. Position belongs to the roster slot, so a swapped-in
   // player inherits the position of the player he replaced.
+  state.oddsHistory = (await fetchCSV(RAW_DATA + 'odds_history_2026.csv')) || [];
+
   const projRows = (await fetchCSV(RAW_DATA + 'projections_2026.csv')) || [];
   state.projections = {};
   projRows.forEach(r => { state.projections[r.player] = r; });
@@ -881,6 +910,8 @@ async function main() {
   document.getElementById('proj-list').innerHTML =
     '<div class="loading" style="padding:20px 0">Simulating 10,000 seasons&hellip;</div>';
   setTimeout(renderProjection, 60);
+  initOddsToggle();
+  renderOddsChart();
   document.getElementById('updated').textContent = `Last updated: ${latestDate}`;
 }
 
@@ -1568,6 +1599,79 @@ function renderProjection() {
     </div>`;
     }).join('');
 
+}
+
+// ---------- Odds over time ----------
+function renderOddsChart() {
+  const rows = state.oddsHistory;
+  const canvas = document.getElementById('odds-chart');
+  if (!rows.length) { canvas.closest('.odds-card').style.display = 'none'; return; }
+
+  const dates = [...new Set(rows.map(r => r.date))].sort();
+  const key = state.oddsView === 'last' ? 'last_pct' : 'win_pct';
+  const byTeam = {};
+  rows.forEach(r => { (byTeam[r.team] = byTeam[r.team] || {})[r.date] = Number(r[key]) * 100; });
+
+  const datasets = TEAMS.filter(t => byTeam[t.name]).map(t => ({
+    label: t.name,
+    data: dates.map(d => byTeam[t.name][d] ?? null),
+    borderColor: t.color,
+    backgroundColor: t.color,
+    borderWidth: 2,
+    pointRadius: 0,
+    pointHoverRadius: 4,
+    tension: 0.25,
+    spanGaps: true,
+  }));
+
+  if (state.oddsChart) state.oddsChart.destroy();
+  state.oddsChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels: dates, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#6b7694', boxWidth: 10, boxHeight: 10, usePointStyle: true,
+                            pointStyle: 'line', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            title: it => fmtDate(it[0].label),
+            label: c => `${c.dataset.label}: ${c.parsed.y == null ? '—' : c.parsed.y.toFixed(1) + '%'}`,
+          },
+        },
+        annotation: {
+          annotations: {
+            brk: {
+              type: 'line', xMin: ALL_STAR_DATE, xMax: ALL_STAR_DATE,
+              borderColor: '#ffd166', borderWidth: 1, borderDash: [4, 4],
+              label: { content: 'All-Star Break', display: true, position: 'start',
+                       color: '#ffd166', backgroundColor: 'transparent', font: { size: 9 } },
+            },
+          },
+        },
+      },
+      scales: {
+        y: { min: 0, max: 100, ticks: { color: '#6b7694', callback: v => v + '%', font: { size: 10 } },
+             grid: { color: '#1e2535' } },
+        x: { ticks: { color: '#6b7694', maxTicksLimit: 10, font: { size: 10 },
+                      callback(v) { return fmtDate(this.getLabelForValue(v)); } },
+             grid: { display: false } },
+      },
+    },
+  });
+}
+
+function initOddsToggle() {
+  document.querySelectorAll('#odds-toggle .chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#odds-toggle .chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.oddsView = btn.dataset.odds;
+      renderOddsChart();
+    });
+  });
 }
 
 // ---------- Positional breakdown ----------
