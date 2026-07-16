@@ -536,7 +536,7 @@
       font-weight: 800;
       font-size: 0.88rem;
       font-variant-numeric: tabular-nums;
-      width: 44px;
+      width: 56px;
       text-align: right;
       flex-shrink: 0;
     }
@@ -550,8 +550,56 @@
       text-align: right;
       flex-shrink: 0;
     }
-    .proj-final b { color: var(--text); font-weight: 700; font-size: 0.82rem; }
-    .proj-note { font-size: 0.7rem; color: var(--muted); margin: 12px 0 0; line-height: 1.5; }
+    .proj-final { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; }
+    .proj-final b { color: var(--text); font-weight: 700; font-size: 0.9rem; }
+    .proj-range { font-size: 0.64rem; color: var(--muted); }
+    .info {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px; height: 15px;
+      border-radius: 50%;
+      border: 1px solid var(--muted);
+      color: var(--muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: none;
+      cursor: help;
+      margin-left: 8px;
+      vertical-align: 2px;
+    }
+    .info:hover, .info:focus { color: var(--text); border-color: var(--text); outline: none; }
+    .info-pop {
+      display: none;
+      position: absolute;
+      left: -8px; top: 24px;
+      z-index: 30;
+      width: min(360px, 78vw);
+      background: #10141d;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--muted);
+      line-height: 1.55;
+      letter-spacing: 0;
+      text-transform: none;
+      text-align: left;
+      cursor: default;
+    }
+    .info:hover .info-pop, .info:focus .info-pop { display: block; }
+    .info-pop b { color: var(--text); font-weight: 700; }
+    .info-pop > b { display: block; margin-bottom: 7px; font-size: 0.78rem; }
+    .info-pop span { display: block; margin-bottom: 7px; }
+    .info-pop span:last-child { margin-bottom: 0; }
+    .info-pop .info-foot { color: #56607c; font-size: 0.66rem; padding-top: 7px; border-top: 1px solid var(--border); }
+    @media (max-width: 640px) { .info-pop { left: auto; right: -8px; } }
 
     .proj-head { border-bottom: 1px solid var(--border); padding-bottom: 6px; }
     .proj-head .proj-final { font-size: 0.62rem; }
@@ -660,9 +708,19 @@
   </div>
 
   <div class="card proj-card">
-    <h2>Projected Finish <span class="sub">— <span id="proj-sub"></span></span></h2>
+    <h2>Projected Finish <span class="sub">— <span id="proj-sub"></span></span><span
+        class="info" tabindex="0" role="button" aria-label="How these odds are calculated">i<span class="info-pop">
+        <b>How the odds are calculated</b>
+        <span>Every player gets a projection from his last three MLB seasons, weighted 5/4/3 toward the present,
+        pulled toward league average (hard for thin records, barely for veterans) and adjusted for age.</span>
+        <span>That rate is applied to the plate appearances he's expected to get across his team's remaining games.
+        Injured players lose the games they're likely to miss. Swapped-out players are frozen and add nothing.</span>
+        <span>The season is then simulated 10,000 times. Each run re-draws both his true rate and how much he plays
+        before drawing homers, so the odds carry real uncertainty rather than just dice-roll noise.</span>
+        <span><b>Final score</b> is the average outcome; the smaller number is the 5th&ndash;95th percentile.</span>
+        <span class="info-foot">Built from MLB Stats API data. Still a toy: no trades, callups, or park effects.</span>
+      </span></span></h2>
     <div id="proj-list"></div>
-    <p class="proj-note" id="proj-note"></p>
   </div>
 
   <div class="card champs-card">
@@ -752,6 +810,7 @@ const state = {
   dailyTotals: {},    // date -> {team: pts}
   swaps: [],          // rows from data/swaps_2026.csv
   positions: {},      // player -> draft position
+  projections: {},    // player -> rest-of-season projection row
   latestDate: null,
   rangeStart: null,
   rangeEnd: null,
@@ -774,6 +833,10 @@ async function main() {
 
   // Draft positions. Position belongs to the roster slot, so a swapped-in
   // player inherits the position of the player he replaced.
+  const projRows = (await fetchCSV(RAW_DATA + 'projections_2026.csv')) || [];
+  state.projections = {};
+  projRows.forEach(r => { state.projections[r.player] = r; });
+
   const posRows = (await fetchCSV(RAW_DATA + 'positions_2026.csv')) || [];
   state.positions = {};
   posRows.forEach(r => { state.positions[r.player] = r.position; });
@@ -812,9 +875,12 @@ async function main() {
   renderRace();
   renderRosters();
   renderPositions();
-  renderProjection();
 
   document.getElementById('race-section').style.display = 'block';
+  // The simulation is heavy enough to jank the page, so let everything paint first.
+  document.getElementById('proj-list').innerHTML =
+    '<div class="loading" style="padding:20px 0">Simulating 10,000 seasons&hellip;</div>';
+  setTimeout(renderProjection, 60);
   document.getElementById('updated').textContent = `Last updated: ${latestDate}`;
 }
 
@@ -1333,16 +1399,21 @@ function renderRosters() {
 }
 
 // ---------- Projected finish ----------
-// Monte Carlo. Each player's scoring rate comes from his season to date; we draw
-// Poisson counts for the days left and see who ends up on top. Deliberately
-// simple: no injuries, no schedule, no park factors. It's a toy, not a forecast.
+// Monte Carlo over the rest of the season, driven by data/projections_2026.csv
+// (Marcel-style rates built from the MLB Stats API; see scripts/build_projections.py).
+//
+// The point of the model is that we are uncertain about a player's true rate and
+// about how much he'll play, not just about the dice. So each simulated season
+// draws a rate from its Gamma posterior and a workload from its Beta posterior
+// before drawing a Poisson count. Marginally that's a Negative Binomial, which is
+// far wider than plain Poisson — which is why nobody sits at a hard 0%.
 const SEASON_END = '2026-09-27';   // MLB regular season ends
 const SIMS = 10000;
 
 const daysBetween = (a, b) =>
   Math.round((new Date(b + 'T12:00:00Z') - new Date(a + 'T12:00:00Z')) / 86400000);
 
-// Knuth. Safe here because every lambda is small (max ~25).
+// Knuth. Fine here: every lambda is small.
 function poissonSample(lambda) {
   if (lambda <= 0) return 0;
   const L = Math.exp(-lambda);
@@ -1351,57 +1422,106 @@ function poissonSample(lambda) {
   return k - 1;
 }
 
+// Marsaglia-Tsang. Returns a draw from Gamma(shape, 1).
+function gammaSample(shape) {
+  if (shape <= 0) return 0;
+  if (shape < 1) return gammaSample(shape + 1) * Math.pow(Math.random(), 1 / shape);
+  const d = shape - 1 / 3, c = 1 / Math.sqrt(9 * d);
+  for (;;) {
+    let x, v;
+    do { x = gaussSample(); v = 1 + c * x; } while (v <= 0);
+    v = v * v * v;
+    const u = Math.random();
+    if (u < 1 - 0.0331 * x * x * x * x) return d * v;
+    if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+  }
+}
+
+// Box-Muller.
+function gaussSample() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function betaSample(a, b) {
+  const x = gammaSample(a), y = gammaSample(b);
+  return x + y === 0 ? 0 : x / (x + y);
+}
+
 function projectionModel() {
-  const elapsed = Math.max(1, daysBetween(state.dataDates[0], state.latestDate));
   const remaining = Math.max(0, daysBetween(state.latestDate, SEASON_END));
+  const proj = state.projections || {};
+  // If the projections file is stale (its workflow failed), shrink games left in
+  // proportion to how much of the season has actually elapsed since it was built.
+  const anyRow = Object.values(proj)[0];
+  const builtFor = anyRow ? Number(anyRow.days_left_at_build) || remaining : remaining;
+  const decay = builtFor > 0 ? Math.min(1, remaining / builtFor) : 0;
 
-  // Built from the slot model so a swapped-in player is projected from the day
-  // the swap is recorded, rather than only once the notebook has put him in the
-  // daily CSV. A frozen player keeps his points inside the slot total but is
-  // never given an arm, so he can't add anything.
   const teams = computeRosterInfo().map(({ team, slots, total }) => {
-    const baseline = {};
-    state.swaps.filter(s => s.team === team.name)
-      .forEach(s => { baseline[s.in_player] = Number(s.in_baseline_hr) || 0; });
-
+    // A frozen player is inside `total` but never gets an arm: his points are
+    // banked and he cannot add another.
     const arms = slots.map((s, i) => {
+      const p = proj[s.player];
+      if (!p) return null;                      // unknown player -> contributes nothing
       const isHBP = i === slots.length - 1;
-      // A swapped-in player's points restart at zero, but his bat did not: his
-      // real production is the pre-swap baseline plus whatever he has added.
-      // Rating him off his reset total would call him a zero-power hitter.
-      const season = s.pts + (baseline[s.player] || 0);
-      const events = isHBP ? season / 3 : season;   // HBP slot scores 3 per plunk
-      return { isHBP, lambda: (events / elapsed) * remaining };
-    });
+      return {
+        isHBP,
+        hrA: Number(p.hr_alpha), hrB: Number(p.hr_beta),
+        hbpA: Number(p.hbp_alpha), hbpB: Number(p.hbp_beta),
+        ageF: Number(p.age_factor) || 1,
+        paPg: Number(p.pa_per_game) || 0,
+        avA: Number(p.avail_a), avB: Number(p.avail_b),
+        games: (Number(p.games_left) || 0) * decay,
+      };
+    }).filter(Boolean);
     return { name: team.name, current: total, arms };
   });
 
-  // Only first and last matter: one wins, one gets the punishment.
-  const wins = {}, lasts = {}, sum = {};
-  TEAMS.forEach(t => { wins[t.name] = 0; lasts[t.name] = 0; sum[t.name] = 0; });
+  const wins = {}, lasts = {}, sum = {}, finalsAll = {};
+  TEAMS.forEach(t => { wins[t.name] = 0; lasts[t.name] = 0; sum[t.name] = 0; finalsAll[t.name] = []; });
 
   for (let i = 0; i < SIMS; i++) {
     let best = -Infinity, worst = Infinity;
     const finals = teams.map(({ name, current, arms }) => {
       let tot = current;
-      for (const a of arms) tot += a.isHBP ? poissonSample(a.lambda) * 3 : poissonSample(a.lambda);
+      for (const a of arms) {
+        // Draw his true rate, then how much he actually plays, then the count.
+        const avail = betaSample(a.avA, a.avB);
+        const pa = a.paPg * a.games * avail;
+        if (pa <= 0) continue;
+        if (a.isHBP) {
+          const rate = gammaSample(a.hbpA) / a.hbpB;
+          tot += poissonSample(rate * pa) * 3;      // HBP slot: 3 points a plunk
+        } else {
+          const rate = (gammaSample(a.hrA) / a.hrB) * a.ageF;
+          tot += poissonSample(rate * pa);
+        }
+      }
       sum[name] += tot;
+      finalsAll[name].push(tot);
       if (tot > best) best = tot;
       if (tot < worst) worst = tot;
       return { name, tot };
     });
-    const top = finals.filter(f => f.tot === best);
-    const bot = finals.filter(f => f.tot === worst);
-    top.forEach(f => { wins[f.name] += 1 / top.length; });    // split ties
-    bot.forEach(f => { lasts[f.name] += 1 / bot.length; });
+    finals.filter(f => f.tot === best).forEach((f, _, a) => { wins[f.name] += 1 / a.length; });
+    finals.filter(f => f.tot === worst).forEach((f, _, a) => { lasts[f.name] += 1 / a.length; });
   }
 
+  const pctile = (arr, q) => {
+    const a = arr.slice().sort((x, y) => x - y);
+    return a[Math.min(a.length - 1, Math.max(0, Math.floor(q * a.length)))];
+  };
+
   return {
-    elapsed, remaining,
+    remaining, decay,
     rows: teams.map(t => ({
       name: t.name,
       current: t.current,
       proj: Math.round(sum[t.name] / SIMS),
+      lo: pctile(finalsAll[t.name], 0.05),
+      hi: pctile(finalsAll[t.name], 0.95),
       pct: wins[t.name] / SIMS,
       lastPct: lasts[t.name] / SIMS,
     })).sort((a, b) => b.pct - a.pct || b.proj - a.proj),
@@ -1418,8 +1538,9 @@ function renderProjection() {
     : 'season complete';
 
   const fmt = p => p >= 0.995 ? '100%'
-    : p >= 0.005 ? `${Math.round(p * 100)}%`
-    : p > 0 ? '<1%' : '0%';
+    : p >= 0.01 ? `${Math.round(p * 100)}%`
+    : p > 0 ? '<1%'
+    : `<${(100 / SIMS).toFixed(2)}%`;   // 0 in SIMS draws is a floor, not a zero
   const width = p => Math.max(p * 100, p > 0 ? 1.5 : 0).toFixed(1);
 
   const meter = (p, color, cls) => `<span class="proj-meter">
@@ -1433,7 +1554,7 @@ function renderProjection() {
       <span class="proj-name"></span>
       <span class="proj-meter"><span class="proj-hd">🏆 wins it</span></span>
       <span class="proj-meter"><span class="proj-hd">💀 last place</span></span>
-      <span class="proj-final">projected</span>
+      <span class="proj-final">final score</span>
     </div>` +
     rows.map(r => {
       const logo = TEAM_LOGOS[r.name];
@@ -1443,15 +1564,10 @@ function renderProjection() {
       <span class="proj-name">${esc(r.name)}</span>
       ${meter(r.pct, colorOf[r.name], 'win')}
       ${meter(r.lastPct, 'var(--red)', 'last')}
-      <span class="proj-final">${r.current} &rarr; <b>${r.proj}</b></span>
+      <span class="proj-final"><b>${r.proj}</b><span class="proj-range">${r.lo}&ndash;${r.hi}</span></span>
     </div>`;
     }).join('');
 
-  document.getElementById('proj-note').innerHTML =
-    'Each player is projected at his own scoring rate this season, drawn forward '
-    + `over the remaining ${remaining} days. Swapped-out players are frozen and add nothing; `
-    + 'swapped-in players are rated on their full-season bat, not their reset total. '
-    + 'No injuries, streaks, or matchups. Entertainment only.';
 }
 
 // ---------- Positional breakdown ----------

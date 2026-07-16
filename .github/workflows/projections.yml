@@ -1,0 +1,29 @@
+name: Rebuild projections
+
+# Kept deliberately separate from run-notebook.yml: if this ever fails, the daily
+# email is untouched and the site just keeps using the last good projections file.
+on:
+  schedule:
+    - cron: "0 13 * * *"   # after the notebook's 11:00 UTC run, so commits don't race
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python scripts/build_projections.py
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/projections_2026.csv
+          git diff --staged --quiet || git commit -m "Update projections [skip ci]"
+          git pull --rebase --autostash origin main || true
+          git push
