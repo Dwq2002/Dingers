@@ -31,7 +31,7 @@
       padding: 24px 16px 48px;
     }
 
-    header { text-align: center; margin-bottom: 36px; }
+    header { text-align: center; margin-bottom: 24px; }
 
     header h1 {
       font-family: 'Bebas Neue', sans-serif;
@@ -55,7 +55,7 @@
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      gap: 14px;
       max-width: 1100px;
       margin: 0 auto;
     }
@@ -68,7 +68,7 @@
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 24px;
+      padding: 18px 20px;
       display: flex;
       flex-direction: column;
       min-width: 0;
@@ -78,10 +78,10 @@
 
     .card h2 {
       font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.4rem;
+      font-size: 1.3rem;
       letter-spacing: 0.06em;
       color: var(--muted);
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       text-transform: uppercase;
       flex-shrink: 0;
     }
@@ -158,6 +158,18 @@
     .team-change.up   { background: rgba(0,196,125,0.15); color: var(--green); }
     .team-change.zero { background: rgba(107,118,148,0.15); color: var(--muted); }
 
+    /* On a phone the fixed columns leave too little for the name, and
+       "Swank's Shanks" and "Swank's Tanks" both truncate to "Swank's…". */
+    @media (max-width: 480px) {
+      .standings-row { gap: 8px; padding: 10px 4px; }
+      .rank { width: 14px; font-size: 0.78rem; }
+      .team-logo, .team-logo-fallback { width: 34px; height: 34px; border-width: 1px; }
+      .team-name { font-size: 0.92rem; }
+      .team-gap { font-size: 0.66rem; }
+      .team-pts { font-size: 1.25rem; min-width: 44px; }
+      .team-change { min-width: 38px; padding: 3px 6px; font-size: 0.66rem; }
+    }
+
     /* ---------- Today's scorers ---------- */
     .scorers-wrapper { flex: 1; min-height: 0; overflow: hidden; position: relative; }
     .scorers-wrapper.expanded { overflow: visible; }
@@ -217,27 +229,27 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
-      padding: 16px 8px;
+      gap: 4px;
+      padding: 10px 6px;
       border: 1px solid var(--border);
       border-radius: 12px;
       text-align: center;
     }
     .hbp-logo, .hbp-logo-fallback {
-      width: 44px; height: 44px;
+      width: 32px; height: 32px;
       border-radius: 50%;
       object-fit: cover;
       border: 2px solid var(--border);
     }
     .hbp-team { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
     .hbp-player { font-weight: 600; font-size: 0.85rem; line-height: 1.3; }
-    .hbp-pts { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .hbp-pts { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
     .hbp-count { font-size: 0.75rem; color: var(--muted); }
 
     /* ---------- Filter row ---------- */
     .filter-row {
       max-width: 1100px;
-      margin: 24px auto 12px;
+      margin: 16px auto 10px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -347,7 +359,7 @@
     .race-table td.date-cell { color: var(--muted); }
 
     /* ---------- Rosters ---------- */
-    .rosters-card { max-width: 1100px; margin: 20px auto 0; }
+    .rosters-card { max-width: 1100px; margin: 14px auto 0; }
 
     details.roster {
       border: 1px solid var(--border);
@@ -450,7 +462,7 @@
     }
 
     /* ---------- Positional breakdown ---------- */
-    .positions-card { max-width: 1100px; margin: 20px auto 0; }
+    .positions-card { max-width: 1100px; margin: 14px auto 0; }
     .pos-table-wrap { overflow-x: auto; }
     .pos-table {
       width: 100%;
@@ -500,7 +512,7 @@
     .pos-player .struck { text-decoration: line-through; }
 
     /* ---------- Projected finish ---------- */
-    .proj-card { max-width: 1100px; margin: 20px auto 0; }
+    .proj-card { max-width: 1100px; margin: 14px auto 0; }
     .proj-row {
       display: flex;
       align-items: center;
@@ -618,36 +630,43 @@
       .proj-meter { flex: 0 0 auto; }
     }
 
-    /* ---------- Odds over time ---------- */
-    .odds-card { max-width: 1100px; margin: 20px auto 0; }
-    .odds-toggle { margin: 0 0 14px; }
-    .odds-chart-wrap { position: relative; height: 320px; }
-    @media (max-width: 640px) { .odds-chart-wrap { height: 240px; } }
-
-    /* ---------- Past champions ---------- */
-    .champs-card { max-width: 1100px; margin: 20px auto 0; }
-    .champs { display: flex; gap: 10px; flex-wrap: wrap; }
-    .champ {
-      flex: 1 1 140px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      padding: 14px 10px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: rgba(255,209,102,0.04);
+    /* ---------- Metric chips (in the race card heading) ---------- */
+    .metric-chips { display: inline-flex; gap: 6px; margin-left: 12px; vertical-align: 2px; }
+    .metric-chips .chip {
+      font-size: 0.7rem;
+      padding: 4px 10px;
+      letter-spacing: 0;
+      text-transform: none;
+      font-family: 'Inter', sans-serif;
     }
-    .champ-cup { font-size: 1.3rem; line-height: 1.4; }
-    .champ-year {
-      font-size: 0.68rem;
+
+    /* ---------- Past champions (slim strip) ---------- */
+    .champs-strip {
+      max-width: 1100px;
+      margin: 16px auto 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 0.78rem;
+    }
+    .champs-label {
       color: var(--muted);
-      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-size: 0.66rem;
       font-weight: 700;
     }
-    .champ-name { font-weight: 700; font-size: 1rem; color: var(--gold); }
-    .champ-open { background: none; border-style: dashed; }
-    .champ-open .champ-name { color: var(--muted); }
+    .champs-strip .champ {
+      padding: 4px 11px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--gold);
+      font-weight: 600;
+    }
+    .champs-strip .champ b { color: var(--muted); font-weight: 700; margin-right: 5px; font-size: 0.7rem; }
+    .champs-strip .champ-open { color: var(--muted); border-style: dashed; }
 
     /* ---------- Misc ---------- */
     .loading {
@@ -688,14 +707,29 @@
     <div class="filter-sep"></div>
     <input type="date" class="date-input" id="date-from" aria-label="From date" />
     <input type="date" class="date-input" id="date-to" aria-label="To date" />
-    <div class="view-toggle" role="group" aria-label="View">
+    <div class="view-toggle" id="view-toggle" role="group" aria-label="View">
       <button class="chip" data-view="chart">Chart</button>
       <button class="chip" data-view="table">Table</button>
     </div>
   </div>
 
   <div class="card race-card">
-    <h2>Season Race</h2>
+    <h2><span id="race-title">Season Race</span><span class="metric-chips" id="metric-chips" role="group" aria-label="Metric">
+        <button class="chip" data-metric="points">Points</button>
+        <button class="chip" data-metric="win">🏆 Title odds</button>
+        <button class="chip" data-metric="last">💀 Last place</button>
+      </span><span class="info" tabindex="0" role="button" aria-label="How the odds are calculated">i<span class="info-pop">
+        <b>How the odds are calculated</b>
+        <span>Every player gets a projection from his last three MLB seasons, weighted 5/4/3 toward the present,
+        pulled toward league average (hard for thin records, barely for veterans) and adjusted for age.</span>
+        <span>That rate is applied to the plate appearances he's expected to get across his team's remaining games.
+        Injured players lose the games they're likely to miss. Swapped-out players are frozen and add nothing.</span>
+        <span>The season is simulated 10,000 times. Each run re-draws both his true rate and how much he plays
+        before drawing homers, so the odds carry real uncertainty rather than dice-roll noise.</span>
+        <span>The odds lines replay each past date with the standings and roster that existed then, using today's
+        talent estimates — a look back with what we know now, computed the same way at every point.</span>
+        <span class="info-foot">Built from MLB Stats API data. Still a toy: no trades, callups, or park effects.</span>
+      </span></span></h2>
     <div class="legend-row" id="legend-row"></div>
     <div class="chart-wrap" id="chart-wrap">
       <canvas id="chart"></canvas>
@@ -729,32 +763,12 @@
     <div id="proj-list"></div>
   </div>
 
-  <div class="card odds-card">
-    <h2>Odds Over Time <span class="sub">— how the race has moved</span><span
-        class="info" tabindex="0" role="button" aria-label="How this chart is built">i<span class="info-pop">
-        <b>How this chart is built</b>
-        <span>Every day of the season is replayed with the standings and the roster that actually
-        existed that day, then simulated forward to the end. Each point is "given where everyone
-        stood on that date, how often does this team finish first (or last)?"</span>
-        <span>Talent estimates are today's, so this is a look back with what we know now, not a
-        record of what we'd have said at the time. Every point is computed the same way, so the
-        shape of the race is honest.</span>
-      </span></span></h2>
-    <div class="filter-row odds-toggle" id="odds-toggle" role="group" aria-label="Odds view">
-      <button class="chip active" data-odds="win">🏆 Wins it</button>
-      <button class="chip" data-odds="last">💀 Last place</button>
-    </div>
-    <div class="odds-chart-wrap"><canvas id="odds-chart"></canvas></div>
-  </div>
-
-  <div class="card champs-card">
-    <h2>Past Champions</h2>
-    <div class="champs">
-      <div class="champ"><span class="champ-cup">🏆</span><span class="champ-year">2023</span><span class="champ-name">Ethan</span></div>
-      <div class="champ"><span class="champ-cup">🏆</span><span class="champ-year">2024</span><span class="champ-name">Bo</span></div>
-      <div class="champ"><span class="champ-cup">🏆</span><span class="champ-year">2025</span><span class="champ-name">Swank</span></div>
-      <div class="champ champ-open"><span class="champ-cup">❓</span><span class="champ-year">2026</span><span class="champ-name">TBD</span></div>
-    </div>
+  <p class="champs-strip">
+    <span class="champs-label">🏆 Champions</span>
+    <span class="champ"><b>2023</b> Ethan</span>
+    <span class="champ"><b>2024</b> Bo</span>
+    <span class="champ"><b>2025</b> Swank</span>
+    <span class="champ champ-open"><b>2026</b> TBD</span>
   </div>
 </div>
 
@@ -767,12 +781,19 @@ const RAW_ASSETS = 'https://raw.githubusercontent.com/Dwq2002/Dingers/main/asset
 
 // Fixed team order — colors follow the team, never its rank.
 // Palette validated for colorblind separation + 3:1 contrast on the card surface.
+// Categorical series colours, in a validated order: blue, magenta, yellow, aqua,
+// violet clears the lightness band, chroma floor, CVD separation, normal-vision
+// floor and contrast on the dark surface. Bo moved off red, which sat only dE 13
+// from deep drivers' yellow and failed the normal-vision floor. Five series can't
+// clear every pair at once, so the charts label lines directly as well — identity
+// is never carried by colour alone. Order matters here: it sets which pairs sit
+// adjacent, so don't reshuffle without re-running the palette validator.
 const TEAMS = [
   { name: 'Kid Named Dinger', color: '#3987e5', logo: RAW_ASSETS + 'Kid_Named_Dinger.JPEG' },
-  { name: 'Bo',               color: '#e66767', logo: RAW_ASSETS + 'Bo.PNG' },
+  { name: 'Bo',               color: '#d55181', logo: RAW_ASSETS + 'Bo.PNG' },
   { name: 'deep drivers',     color: '#c98500', logo: 'https://github.com/user-attachments/assets/03d3f450-bde2-4da9-a21e-785f599db9ef' },
-  { name: "Swank's Tanks",    color: '#9085e9', logo: RAW_ASSETS + 'Swanks_Tanks.JPEG' },
   { name: "Swank's Shanks",   color: '#199e70', logo: RAW_ASSETS + 'Swanks_Shanks.JPG' },
+  { name: "Swank's Tanks",    color: '#9085e9', logo: RAW_ASSETS + 'Swanks_Tanks.JPEG' },
 ];
 const TEAM_COLORS = Object.fromEntries(TEAMS.map(t => [t.name, t.color]));
 const TEAM_LOGOS  = Object.fromEntries(TEAMS.map(t => [t.name, t.logo]));
@@ -836,7 +857,7 @@ const state = {
   positions: {},      // player -> draft position
   projections: {},    // player -> rest-of-season projection row
   oddsHistory: [],    // rows from data/odds_history_2026.csv
-  oddsView: 'win',
+  metric: 'points',
   oddsChart: null,
   latestDate: null,
   rangeStart: null,
@@ -910,8 +931,7 @@ async function main() {
   document.getElementById('proj-list').innerHTML =
     '<div class="loading" style="padding:20px 0">Simulating 10,000 seasons&hellip;</div>';
   setTimeout(renderProjection, 60);
-  initOddsToggle();
-  renderOddsChart();
+  initMetricChips();
   document.getElementById('updated').textContent = `Last updated: ${latestDate}`;
 }
 
@@ -1077,6 +1097,8 @@ function syncChips() {
     b.classList.toggle('active', b.dataset.range === state.activePreset));
   row.querySelectorAll('[data-view]').forEach(b =>
     b.classList.toggle('active', b.dataset.view === state.view));
+  document.querySelectorAll('#metric-chips .chip').forEach(b =>
+    b.classList.toggle('active', b.dataset.metric === state.metric));
 }
 
 // ---------- Legend ----------
@@ -1114,6 +1136,22 @@ function filteredDates() {
 function renderRace() {
   const chartWrap = document.getElementById('chart-wrap');
   const tableWrap = document.getElementById('race-table-wrap');
+
+  // The odds views share the canvas and the date range; only points has a table.
+  document.getElementById('view-toggle').style.display =
+    state.metric === 'points' ? '' : 'none';
+  document.getElementById('legend-row').style.display =
+    state.metric === 'points' ? '' : 'none';
+  document.getElementById('race-title').textContent =
+    state.metric === 'points' ? 'Season Race'
+    : state.metric === 'win' ? 'Title Odds' : 'Last-Place Odds';
+
+  if (state.metric !== 'points') {
+    tableWrap.style.display = 'none';
+    chartWrap.style.display = 'block';
+    renderOddsChart();
+    return;
+  }
   if (state.view === 'table') {
     chartWrap.style.display = 'none';
     tableWrap.style.display = 'block';
@@ -1602,17 +1640,21 @@ function renderProjection() {
 }
 
 // ---------- Odds over time ----------
+// Shares the season-race canvas. Each line is labelled at its end as well as in
+// the legend: five series can't clear every colour-blindness pair at once, so
+// identity never rests on colour alone.
 function renderOddsChart() {
   const rows = state.oddsHistory;
-  const canvas = document.getElementById('odds-chart');
-  if (!rows.length) { canvas.closest('.odds-card').style.display = 'none'; return; }
+  const canvas = document.getElementById('chart');
+  if (!rows.length) return;
 
-  const dates = [...new Set(rows.map(r => r.date))].sort();
-  const key = state.oddsView === 'last' ? 'last_pct' : 'win_pct';
+  const inRange = new Set(filteredDates());
+  const dates = [...new Set(rows.map(r => r.date))].sort().filter(d => inRange.has(d));
+  const key = state.metric === 'last' ? 'last_pct' : 'win_pct';
   const byTeam = {};
   rows.forEach(r => { (byTeam[r.team] = byTeam[r.team] || {})[r.date] = Number(r[key]) * 100; });
 
-  const datasets = TEAMS.filter(t => byTeam[t.name]).map(t => ({
+  const datasets = TEAMS.filter(t => byTeam[t.name] && !state.hidden.has(t.name)).map(t => ({
     label: t.name,
     data: dates.map(d => byTeam[t.name][d] ?? null),
     borderColor: t.color,
@@ -1624,17 +1666,18 @@ function renderOddsChart() {
     spanGaps: true,
   }));
 
-  if (state.oddsChart) state.oddsChart.destroy();
-  state.oddsChart = new Chart(canvas, {
+  if (state.chart) state.chart.destroy();
+  state.chart = new Chart(canvas, {
     type: 'line',
     data: { labels: dates, datasets },
+    plugins: [endLabelPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 8, right: 112, bottom: 0, left: 0 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { color: '#6b7694', boxWidth: 10, boxHeight: 10, usePointStyle: true,
-                            pointStyle: 'line', font: { size: 11 } } },
+        legend: { display: false },
         tooltip: {
           callbacks: {
             title: it => fmtDate(it[0].label),
@@ -1642,20 +1685,20 @@ function renderOddsChart() {
           },
         },
         annotation: {
-          annotations: {
+          annotations: dates.includes(ALL_STAR_DATE) ? {
             brk: {
               type: 'line', xMin: ALL_STAR_DATE, xMax: ALL_STAR_DATE,
               borderColor: '#ffd166', borderWidth: 1, borderDash: [4, 4],
               label: { content: 'All-Star Break', display: true, position: 'start',
                        color: '#ffd166', backgroundColor: 'transparent', font: { size: 9 } },
             },
-          },
+          } : {},
         },
       },
       scales: {
         y: { min: 0, max: 100, ticks: { color: '#6b7694', callback: v => v + '%', font: { size: 10 } },
              grid: { color: '#1e2535' } },
-        x: { ticks: { color: '#6b7694', maxTicksLimit: 10, font: { size: 10 },
+        x: { ticks: { color: '#6b7694', maxTicksLimit: 8, font: { size: 10 },
                       callback(v) { return fmtDate(this.getLabelForValue(v)); } },
              grid: { display: false } },
       },
@@ -1663,13 +1706,41 @@ function renderOddsChart() {
   });
 }
 
-function initOddsToggle() {
-  document.querySelectorAll('#odds-toggle .chip').forEach(btn => {
+// Writes each series name at the end of its line.
+const endLabelPlugin = {
+  id: 'endLabels',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    ctx.save();
+    const narrow = chart.width < 620;
+    ctx.font = `600 ${narrow ? 9 : 10}px Inter, sans-serif`;
+    ctx.textBaseline = 'middle';
+    const placed = [];
+    chart.data.datasets.forEach((ds, i) => {
+      const meta = chart.getDatasetMeta(i);
+      const pts = meta.data.filter(p => p && !isNaN(p.y));
+      if (!pts.length) return;
+      const p = pts[pts.length - 1];
+      let y = p.y;
+      while (placed.some(o => Math.abs(o - y) < 11)) y += 11;   // nudge apart on collision
+      placed.push(y);
+      ctx.fillStyle = ds.borderColor;
+      let label = ds.label;
+      const room = chart.width - p.x - 10;
+      while (label.length > 4 && ctx.measureText(label).width > room) label = label.slice(0, -1);
+      if (label !== ds.label) label = label.slice(0, -1) + '…';
+      ctx.fillText(label, p.x + 7, y);
+    });
+    ctx.restore();
+  },
+};
+
+function initMetricChips() {
+  document.querySelectorAll('#metric-chips .chip').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('#odds-toggle .chip').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.oddsView = btn.dataset.odds;
-      renderOddsChart();
+      state.metric = btn.dataset.metric;
+      syncChips();
+      renderRace();
     });
   });
 }
