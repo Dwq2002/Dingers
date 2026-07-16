@@ -66,13 +66,18 @@ Swaps do **not** reshuffle points. The player you drop **freezes** at the points
 - **Standings & season race** — filter by date range, or since the break.
 - **Team rosters** — every slot with its draft position. Swapped slots show the dropped player struck through with his frozen points, an arrow, and what his replacement has added since.
 - **Positional breakdown** — who's winning at each spot.
-- **Projected finish** — odds of taking it and odds of coming last, from 10,000 simulated seasons.
+- **Projected finish** — odds of taking it and odds of coming last, from 10,000 simulated seasons, with a 5th–95th percentile band.
+- **Odds over time** — how the title race and the last-place race have moved all season.
 
 ### How the projections work
 
 Each player gets a [Marcel-style](http://www.tangotiger.net/archives/stud0346.shtml) projection: his last three MLB seasons weighted 5/4/3 toward the present, regressed toward league average (hard for thin records, barely at all for veterans), and age-adjusted. That rate is applied to the plate appearances he's expected to get across his team's remaining games. Injured players are docked the games they're likely to miss; frozen players add nothing.
 
 The season is then simulated 10,000 times. Each run re-draws both a player's *true rate* and *how much he plays* before drawing homers — so the odds carry genuine uncertainty rather than dice-roll noise, and nobody who isn't mathematically eliminated reads as a flat 0%.
+
+Everything recomputes from the live CSVs on every page load, so the odds move as the season does: a big night shifts them, and they harden as the days run out.
+
+The **Odds Over Time** chart replays every past date with the standings and roster that existed then. Talent estimates are today's, so it's a look back with what we know now rather than a record of what we'd have said at the time — but every point is computed identically, so the shape of the race is honest.
 
 ## Under the hood
 
@@ -83,7 +88,9 @@ The season is then simulated 10,000 times. Each run re-draws both a player's *tr
 | `data/swaps_2026.csv` | Swap ledger — source of truth for frozen points and baselines |
 | `data/positions_2026.csv` | Draft position for all 55 players |
 | `data/projections_2026.csv` | Rest-of-season projections, rebuilt daily |
-| `scripts/build_projections.py` | Builds the above from the MLB Stats API |
+| `data/odds_history_2026.csv` | Title/last odds after every day of the season |
+| `scripts/build_projections.py` | Builds the projections from the MLB Stats API |
+| `scripts/build_odds_history.py` | Replays the season to build the odds chart |
 | `docs/index.html` | The standings site (GitHub Pages) |
 
 **Workflows:** `run-notebook.yml` scores and emails at 11:00 UTC daily. `projections.yml` rebuilds projections at 13:00 UTC, deliberately kept separate so it can never take the email down with it.

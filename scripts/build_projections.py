@@ -74,8 +74,12 @@ def rosters_and_swaps():
             "teheng_team": "Swank's Shanks", "swank_team": "deep drivers"}
     swaps = list(csv.DictReader(open(REPO / "data/swaps_2026.csv")))
     sub = {s["out_player"]: s["in_player"] for s in swaps}
-    return {TEAM[k]: {"players": [sub.get(p, p) for p in v],
-                      "hbp": sub.get(v[-1], v[-1])} for k, v in lists.items()}
+    out = {}
+    for k, v in lists.items():
+        cur = [sub.get(p, p) for p in v]
+        dropped = [p for p in v if p in sub]     # still needed for historical dates
+        out[TEAM[k]] = {"players": cur + dropped, "hbp": sub.get(v[-1], v[-1])}
+    return out
 
 
 def player_index():
@@ -182,6 +186,9 @@ def main():
 
             miss = IL_MISS.get(st, 0 if st == "Active" else 10)
             eff_games = max(0, games_left - miss)
+            # Kept separate so the odds-history replay can rescale the healthy
+            # figure per date and still subtract the same injury, landing on
+            # exactly `games_left` for today.
 
             rows.append({
                 "as_of": run_date.isoformat(),
@@ -194,7 +201,8 @@ def main():
                 "age_factor": round(age_factor(age), 4),
                 "pa_per_game": round(pa_pg, 4),
                 "avail_a": round(av_a, 1), "avail_b": round(av_b, 1),
-                "games_left": eff_games, "status": st,
+                "games_left": eff_games, "games_left_healthy": games_left,
+                "il_miss": miss, "status": st,
                 "proj_hr": round((hr_a / hr_b) * age_factor(age) * pa_pg * eff_games
                                  * (av_a / (av_a + av_b)), 1),
                 "proj_hbp": round((hbp_a / hbp_b) * pa_pg * eff_games
