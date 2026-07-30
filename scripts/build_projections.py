@@ -20,7 +20,7 @@ Writes data/projections_2026.csv, read by docs/index.html. Touches neither the
 daily notebook nor the email.
 """
 import csv, json, sys, unicodedata, difflib, urllib.request, re
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 SEASON, SEASON_END = 2026, date(2026, 9, 27)
@@ -30,6 +30,10 @@ PA_PER_GAME_PRIOR, PA_PER_GAME_REG = 3.9, 40   # regress part-timers' PA/G
 # Games a player is expected to still miss from his current status.
 IL_MISS = {"Injured 7-Day": 8, "Injured 10-Day": 12, "Injured 15-Day": 18,
            "Injured 60-Day": 55, "Reassigned to Minors": 40, "Suspended # days": 10}
+# Minimum stay on each IL, for the earliest date a player could be activated.
+# This is a floor set by the rules, NOT a prediction of when he actually returns.
+IL_MIN_DAYS = {"Injured 7-Day": 7, "Injured 10-Day": 10, "Injured 15-Day": 15,
+               "Injured 60-Day": 60}
 REPO = Path(__file__).resolve().parent.parent
 
 
@@ -99,8 +103,10 @@ def resolve(name, idx):
 
 
 def history(pid):
+    # `transactions` rides along on the call we already make per player, so the
+    # injury detail below costs no extra requests.
     d = get(f"https://statsapi.mlb.com/api/v1/people/{pid}"
-            f"?hydrate=stats(group=[hitting],type=[yearByYear]),currentTeam")
+            f"?hydrate=stats(group=[hitting],type=[yearByYear]),currentTeam,transactions")
     p = d["people"][0]
     years = {}
     for st in p.get("stats", []):
@@ -134,6 +140,42 @@ def status_index():
         for e in r.get("roster", []):
             st[e["person"]["id"]] = (e.get("status", {}).get("description", "Active"), t["id"])
     return st
+
+
+def il_detail(person, status):
+    """Diagnosis + IL date for a player who is currently on the IL.
+
+    The API exposes no expected return date, only the transaction log, so the
+    most we can honestly derive is when he went on and the earliest he may come
+    off. Anything past that floor is a guess and we do not make it here.
+
+    Only read for a currently-injured status: a healthy player's log still holds
+    every IL stint of his career and the newest one would render as current.
+    """
+    if not status.startswith("Injured"):
+        return "", "", ""
+    placements = [t for t in person.get("transactions", [])
+                  if "injured list" in t.get("description", "").lower()
+                  and " placed " in t.get("description", "").lower()]
+    if not placements:
+        return "", "", ""
+    last = max(placements, key=lambda t: t.get("effectiveDate") or t.get("date") or "")
+    desc = last.get("description", "")
+    # "...on the 10-day injured list retroactive to July 21, 2026. Low back
+    # tightness." — the diagnosis is whatever trails the sentence.
+    m = re.search(r"injured list[^.]*\.\s*(.+?)\s*$", desc)
+    diagnosis = m.group(1).rstrip(". ") if m else ""
+    # This is the only free text in the file and the site splits rows on bare
+    # commas, so a quoted field would shift every later column for that player.
+    diagnosis = diagnosis.replace(",", ";")
+    on = last.get("effectiveDate") or last.get("date") or ""
+    ret = ""
+    if on and status in IL_MIN_DAYS:
+        try:
+            ret = (date.fromisoformat(on) + timedelta(days=IL_MIN_DAYS[status])).isoformat()
+        except ValueError:
+            ret = ""
+    return diagnosis, on, ret
 
 
 def main():
@@ -186,6 +228,7 @@ def main():
 
             miss = IL_MISS.get(st, 0 if st == "Active" else 10)
             eff_games = max(0, games_left - miss)
+            il_desc, il_date, il_return = il_detail(person, st)
             # Kept separate so the odds-history replay can rescale the healthy
             # figure per date and still subtract the same injury, landing on
             # exactly `games_left` for today.
@@ -203,6 +246,7 @@ def main():
                 "avail_a": round(av_a, 1), "avail_b": round(av_b, 1),
                 "games_left": eff_games, "games_left_healthy": games_left,
                 "il_miss": miss, "status": st,
+                "il_desc": il_desc, "il_date": il_date, "il_return_min": il_return,
                 "proj_hr": round((hr_a / hr_b) * age_factor(age) * pa_pg * eff_games
                                  * (av_a / (av_a + av_b)), 1),
                 "proj_hbp": round((hbp_a / hbp_b) * pa_pg * eff_games

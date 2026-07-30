@@ -511,6 +511,62 @@
     }
     .pos-player .struck { text-decoration: line-through; }
 
+    /* ---------- Injury report ---------- */
+    .inj-card { max-width: 1100px; margin: 14px auto 0; }
+    .inj-team {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 16px 0 2px;
+    }
+    .inj-team:first-child { margin-top: 0; }
+    .inj-team-logo, .inj-team-fallback {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .inj-team-name { font-weight: 700; font-size: 0.85rem; }
+    .inj-team-count { font-size: 0.7rem; color: var(--muted); }
+
+    .inj-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--grid-line);
+      font-size: 0.88rem;
+    }
+    .inj-row:last-child { border-bottom: none; }
+    .inj-name { font-weight: 600; }
+    .inj-diag { font-size: 0.82rem; opacity: 0.85; }
+    /* Meta takes a full row of its own so long diagnoses never crowd it. */
+    .inj-meta {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px 14px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .inj-meta b { font-weight: 700; color: var(--text); opacity: 0.75; }
+    /* Past his earliest return date and still out — usually a setback. */
+    .inj-overdue, .inj-overdue b { color: var(--gold); opacity: 1; }
+    .badge.il { background: rgba(229,72,77,0.14); color: var(--red); }
+    .badge.minors { background: rgba(107,118,148,0.16); color: var(--muted); }
+    .inj-none { color: var(--muted); font-size: 0.85rem; padding: 4px 0; }
+    .inj-note {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--grid-line);
+      line-height: 1.55;
+    }
+
     /* ---------- Projected finish ---------- */
     .proj-card { max-width: 1100px; margin: 14px auto 0; }
     .proj-row {
@@ -742,6 +798,12 @@
     <div id="rosters"></div>
   </div>
 
+  <div class="card inj-card">
+    <h2>Injury Report <span class="sub">— <span id="inj-sub"></span></span></h2>
+    <div id="inj-list"></div>
+    <p class="inj-note" id="inj-note"></p>
+  </div>
+
   <div class="card positions-card">
     <h2>Positional Breakdown <span class="sub">— points by draft position &bull; best at each spot highlighted</span></h2>
     <div class="pos-table-wrap"><table class="pos-table" id="pos-table"></table></div>
@@ -924,6 +986,7 @@ async function main() {
   initFilters();
   renderRace();
   renderRosters();
+  renderInjuries();
   renderPositions();
 
   document.getElementById('race-section').style.display = 'block';
@@ -1435,6 +1498,12 @@ function renderRosters() {
       row.className = 'roster-player';
       const pos = s.pos ? `<span class="badge pos">${esc(s.pos)}</span>` : '';
       const hbp = isHBP ? '<span class="badge hbp">HBP</span>' : '';
+      // Mirrors the Injury Report card; frozen players never carry it since the
+      // badge tracks the slot's current occupant.
+      const st = state.projections[s.player]?.status;
+      const il = st && st !== 'Active'
+        ? `<span class="badge ${st === 'Reassigned to Minors' ? 'minors' : 'il'}">${esc(ilLabel(st))}</span>`
+        : '';
 
       if (s.out) {
         // Slot total = what the frozen player banked + what the new one has added.
@@ -1446,7 +1515,7 @@ function renderRosters() {
           <span class="p-arrow">→</span>
           <span class="p-name">${esc(s.player)}</span>
           <span class="p-gain">+${s.pts}</span>
-          ${hbp}
+          ${hbp}${il}
           <span class="p-fill"></span>
           <span class="p-pts">${s.total}</span>
           <span class="p-pts-label">pts</span>`;
@@ -1454,7 +1523,7 @@ function renderRosters() {
         row.innerHTML = `
           ${pos}
           <span class="p-name">${esc(s.player)}</span>
-          ${hbp}
+          ${hbp}${il}
           <span class="p-fill"></span>
           <span class="p-pts">${s.total}</span>
           <span class="p-pts-label">pts</span>`;
@@ -1465,6 +1534,98 @@ function renderRosters() {
     details.appendChild(body);
     container.appendChild(details);
   });
+}
+
+// ---------- Injury report ----------
+// Status, diagnosis and IL date all come from the MLB Stats API via
+// scripts/build_projections.py. The API publishes no expected return date, so
+// the only date we can state is the earliest he is *eligible* to be activated.
+// It is a floor set by the IL rules, never a prediction — label it that way.
+
+// "Injured 10-Day" -> "10-day IL"
+function ilLabel(status) {
+  const m = /^Injured (\d+)-Day$/.exec(status || '');
+  if (m) return `${m[1]}-day IL`;
+  if (status === 'Reassigned to Minors') return 'Minors';
+  return status || '';
+}
+
+function injuredPlayers() {
+  // Built off the slot model, so swapped-out players are already excluded —
+  // their injuries are frozen along with their points and change nothing.
+  const order = state.sortedTeams || TEAMS.map(t => t.name);
+  return computeRosterInfo()
+    .sort((a, b) => order.indexOf(a.team.name) - order.indexOf(b.team.name))
+    .map(({ team, slots }) => ({
+      team,
+      players: slots.map(s => {
+        const p = state.projections[s.player];
+        if (!p || !p.status || p.status === 'Active') return null;
+        return {
+          name: s.player, pos: s.pos, status: p.status,
+          diag: p.il_desc || '', since: p.il_date || '', eligible: p.il_return_min || '',
+          projHR: Number(p.proj_hr) || 0,
+        };
+      }).filter(Boolean),
+    }));
+}
+
+function renderInjuries() {
+  const list = document.getElementById('inj-list');
+  const groups = injuredPlayers().filter(g => g.players.length);
+  const total = groups.reduce((n, g) => n + g.players.length, 0);
+
+  document.getElementById('inj-sub').textContent = total
+    ? `${total} player${total > 1 ? 's' : ''} out across ${groups.length} team${groups.length > 1 ? 's' : ''}`
+    : 'everyone healthy';
+
+  if (!total) {
+    list.innerHTML = '<div class="inj-none">No rostered player is currently on the IL or in the minors.</div>';
+  } else {
+    list.innerHTML = groups.map(({ team, players }) => {
+      const logo = TEAM_LOGOS[team.name];
+      const head = `
+        <div class="inj-team">
+          ${logo
+            ? `<img class="inj-team-logo" src="${esc(logo)}" alt="" loading="lazy" />`
+            : `<div class="inj-team-fallback" style="background:${team.color}"></div>`}
+          <span class="inj-team-name">${esc(team.name)}</span>
+          <span class="inj-team-count">${players.length} out</span>
+        </div>`;
+
+      const rows = players.map(p => {
+        const minors = p.status === 'Reassigned to Minors';
+        // Past the earliest activation date and still not back: usually a setback,
+        // and the flat games-missed penalty in the model is understating him.
+        const overdue = p.eligible && p.eligible < state.latestDate;
+        // Each entry is one element: bare text nodes would become separate flex
+        // items and take the row gap mid-sentence.
+        const meta = [];
+        if (p.since) meta.push(`<span>Out since <b>${fmtDate(p.since)}</b></span>`);
+        if (p.eligible) {
+          meta.push(overdue
+            ? `<span>Eligible since <b>${fmtDate(p.eligible)}</b>, still out</span>`
+            : `<span>Eligible <b>${fmtDate(p.eligible)}</b></span>`);
+        }
+        meta.push(`<span><b>${p.projHR.toFixed(1)}</b> HR still projected</span>`);
+        return `
+          <div class="inj-row">
+            ${p.pos ? `<span class="badge pos">${esc(p.pos)}</span>` : ''}
+            <span class="inj-name">${esc(p.name)}</span>
+            <span class="badge ${minors ? 'minors' : 'il'}">${esc(ilLabel(p.status))}</span>
+            ${p.diag ? `<span class="inj-diag">${esc(p.diag)}</span>` : ''}
+            <span class="inj-meta${overdue ? ' inj-overdue' : ''}">${meta.join('<span>&bull;</span>')}</span>
+          </div>`;
+      }).join('');
+
+      return head + rows;
+    }).join('');
+  }
+
+  document.getElementById('inj-note').innerHTML =
+    'Status, diagnosis and IL date come from the MLB Stats API, refreshed daily. '
+    + '<b>Eligible</b> is the earliest date the IL rules allow him to be activated, not a prediction of when he returns. '
+    + 'Swapped-out players are left off: their points are frozen, so their injuries no longer matter.';
 }
 
 // ---------- Projected finish ----------
