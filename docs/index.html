@@ -853,7 +853,12 @@ const RAW_ASSETS = 'https://raw.githubusercontent.com/Dwq2002/Dingers/main/asset
 const TEAMS = [
   { name: 'Kid Named Dinger', color: '#3987e5', logo: RAW_ASSETS + 'Kid_Named_Dinger.JPEG' },
   { name: 'Bo',               color: '#d55181', logo: RAW_ASSETS + 'Bo.PNG' },
-  { name: 'deep drivers',     color: '#c98500', logo: 'https://github.com/user-attachments/assets/03d3f450-bde2-4da9-a21e-785f599db9ef' },
+  // Logos must be served from raw.githubusercontent: the chart preloads them
+  // with crossOrigin='anonymous' for the canvas, and GitHub's user-attachments
+  // host redirects to S3 without an access-control-allow-origin header. A plain
+  // <img> still renders, so a hotlinked logo shows in the roster cards and
+  // silently vanishes from the race chart.
+  { name: 'deep drivers',     color: '#c98500', logo: RAW_ASSETS + 'deep_drivers.JPEG' },
   { name: "Swank's Shanks",   color: '#199e70', logo: RAW_ASSETS + 'Swanks_Shanks.JPG' },
   { name: "Swank's Tanks",    color: '#9085e9', logo: RAW_ASSETS + 'Swanks_Tanks.JPEG' },
 ];
@@ -1252,6 +1257,12 @@ function renderRaceChart() {
     id: 'logoPlugin',
     afterDatasetsDraw(chart) {
       const { ctx } = chart;
+      const r = 15, gap = 2 * r + 6;
+
+      // Collect every marker before drawing any: teams level on points end at
+      // the same pixel, and the later dataset would paint straight over the
+      // earlier one, so a team just silently loses its logo.
+      const marks = [];
       chart.data.datasets.forEach((dataset, i) => {
         const meta = chart.getDatasetMeta(i);
         if (!meta.visible) return;
@@ -1262,12 +1273,27 @@ function renderRaceChart() {
           if (dataset.data[j] != null) { lastPoint = meta.data[j]; break; }
         }
         if (!lastPoint) return;
-        const { x, y } = lastPoint;
-        const r = 15;
+        marks.push({ x: lastPoint.x, y: lastPoint.y, img, color: dataset.borderColor });
+      });
+
+      // Separate collisions along x only. y encodes the team's actual points and
+      // has to stay exact; x is already just "the end of the line", so stepping
+      // back along it costs no accuracy.
+      const placed = [];
+      marks.forEach(m => {
+        let guard = 0;
+        while (guard++ < marks.length
+               && placed.some(p => Math.abs(p.y - m.y) < gap && Math.abs(p.x - m.x) < gap)) {
+          m.x -= gap;
+        }
+        placed.push(m);
+      });
+
+      placed.forEach(({ x, y, img, color }) => {
         ctx.save();
         ctx.beginPath();
         ctx.arc(x, y, r + 2, 0, Math.PI * 2);
-        ctx.fillStyle = dataset.borderColor;
+        ctx.fillStyle = color;
         ctx.fill();
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
