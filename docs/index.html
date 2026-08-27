@@ -860,10 +860,18 @@
       #acc-dingers .scorer-row { break-inside: avoid; }
       #acc-dingers .expand-btn { display: none !important; }
 
-      .standings-row { height: 52px; grid-template-columns: 22px 36px 1fr auto 60px; }
-      .team-logo, .team-logo-fallback { width: 36px; height: 36px; }
-      .team-pts { font-size: 1.4rem; }
-      .team-name { font-size: 1rem; }
+      #standings { padding: 14px 18px; }
+      .standings-row { height: 66px; grid-template-columns: 26px 46px 1fr auto 72px; gap: 12px; }
+      .team-logo, .team-logo-fallback { width: 46px; height: 46px; }
+      .team-pts { font-size: 1.7rem; }
+      .team-name { font-size: 1.12rem; }
+      .team-gap { font-size: 0.74rem; }
+      .team-change { font-size: 0.8rem; padding: 4px 10px; }
+      #acc-dingers .acc-body { padding: 14px 18px 16px; }
+      #acc-dingers .scorer-row { padding: 9px 0; }
+      #acc-dingers .scorer-name { font-size: 1rem; }
+      #acc-dingers .scorer-team { font-size: 0.8rem; }
+      #acc-dingers .scorer-pts { font-size: 1.25rem; }
 
 
       .race-top { flex-direction: row; flex-wrap: wrap; align-items: center; }
@@ -1356,7 +1364,7 @@ function renderTopCards(latest) {
     ? `${scorers.length} HR \u00b7 ${new Set(scorers.map(r => r.team)).size} team${new Set(scorers.map(r => r.team)).size > 1 ? 's' : ''}`
     : 'no dingers');
   const topHbp = hbpRows[0];
-  setSum('sum-hbp', topHbp && topHbp.p ? `${topHbp.p.player} ${topHbp.pts} \u00b7 ${topHbp.team}` : '');
+  setSum('sum-hbp', topHbp && topHbp.p ? `Leader: ${topHbp.p.player} ${topHbp.pts} pts (${topHbp.team})` : '');
   state.sortedTeams = sorted.map(([team]) => team);
 }
 
@@ -2130,7 +2138,7 @@ function renderProjection() {
 
   const fav = rows[0];
   setSum('sum-proj', remaining > 0 && fav
-    ? `${fav.name} ${fmt(fav.pct)} \u00b7 ${remaining} day${remaining === 1 ? '' : 's'} left`
+    ? `Favorite: ${fav.name} ${fmt(fav.pct)} \u00b7 ${remaining} day${remaining === 1 ? '' : 's'} left`
     : 'season complete');
 }
 
@@ -2290,7 +2298,7 @@ function renderPositions() {
   document.getElementById('pos-table').innerHTML = head + `<tbody>${body}</tbody>` + foot;
 
   const top = Object.entries(bestCount).sort((a, b) => b[1] - a[1])[0];
-  setSum('sum-pos', top ? `${top[0]} best at ${top[1]} of ${rowCount}` : '');
+  setSum('sum-pos', top ? `Most spots led: ${top[0]} (${top[1]} of ${rowCount})` : '');
 }
 
 // ---------- Expand button for Today's Dingers ----------
