@@ -155,7 +155,7 @@
     }
     .acc-head {
       display: grid;
-      grid-template-columns: 22px auto minmax(0, 1fr) 16px;
+      grid-template-columns: 22px auto minmax(0, 1fr) auto;
       gap: 10px;
       align-items: center;
       height: 48px;
@@ -188,8 +188,26 @@
       justify-self: end;
       max-width: 100%;
     }
-    .acc-chev { color: var(--muted); font-size: 0.8rem; transition: transform 0.2s; text-align: center; }
-    .acc[open] .acc-chev { transform: rotate(180deg); }
+    /* A labelled tag, so it reads as a button and not as decoration. */
+    .acc-chev {
+      color: var(--muted);
+      font-size: 0.64rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 9px;
+      white-space: nowrap;
+    }
+    .acc-chev::before { content: '▾ open'; }
+    .acc[open] .acc-chev::before { content: '▴ close'; }
+    .acc-head:hover .acc-chev { color: var(--text); border-color: var(--muted); }
+    @media (max-width: 899px) {
+      .acc-chev { padding: 3px 7px; font-size: 0.7rem; }
+      .acc-chev::before { content: '▾'; }
+      .acc[open] .acc-chev::before { content: '▴'; }
+    }
     .acc[open] .acc-head { border-bottom: 1px solid var(--grid-line); border-radius: 11px 11px 0 0; }
     .acc-body { padding: 10px 12px 12px; }
 
@@ -826,17 +844,27 @@
     /* ---------- Desktop ---------- */
     @media (min-width: 900px) {
       .stack { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-      #standings { grid-column: 1; grid-row: 1; align-self: start; }
-      #acc-dingers { grid-column: 2; grid-row: 1; align-self: start; }
+      /* Standings sets the row height; Last Night stretches to match it and
+         flows its scorers into two columns inside that box. */
+      #standings { grid-column: 1; grid-row: 1; }
       .acc { grid-column: 1 / -1; }
-      #acc-dingers { grid-column: 2; }
+      #acc-dingers { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; contain: size; overflow: hidden; }
+      #acc-dingers .acc-head { flex-shrink: 0; }
+      #acc-dingers .acc-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+      #acc-dingers:not([open]) .acc-body { display: none; }
+      #acc-dingers .scorers-wrapper {
+        flex: 1; min-height: 0; max-height: none;
+        overflow-y: auto;
+        columns: 2; column-gap: 28px;
+      }
+      #acc-dingers .scorer-row { break-inside: avoid; }
+      #acc-dingers .expand-btn { display: none !important; }
 
       .standings-row { height: 52px; grid-template-columns: 22px 36px 1fr auto 60px; }
       .team-logo, .team-logo-fallback { width: 36px; height: 36px; }
       .team-pts { font-size: 1.4rem; }
       .team-name { font-size: 1rem; }
 
-      .scorers-wrapper { max-height: 360px; }
 
       .race-top { flex-direction: row; flex-wrap: wrap; align-items: center; }
       .race-ctl { flex: 0 0 auto; }
@@ -867,9 +895,9 @@
   <details class="acc" id="acc-dingers">
     <summary class="acc-head">
       <span class="acc-ico" aria-hidden="true">⚾</span>
-      <span class="acc-label">Last Night</span>
+      <span class="acc-label">Last Night's HRs</span>
       <span class="acc-sum" id="sum-dingers"></span>
-      <span class="acc-chev" aria-hidden="true">▾</span>
+      <span class="acc-chev" aria-hidden="true"></span>
     </summary>
     <div class="acc-body"></div>
   </details>
@@ -877,9 +905,9 @@
   <details class="acc" id="acc-race">
     <summary class="acc-head">
       <span class="acc-ico" aria-hidden="true">📈</span>
-      <span class="acc-label" id="race-title">Season Race</span>
+      <span class="acc-label" id="race-title">Race Chart</span>
       <span class="acc-sum" id="sum-race"></span>
-      <span class="acc-chev" aria-hidden="true">▾</span>
+      <span class="acc-chev" aria-hidden="true"></span>
     </summary>
     <div class="acc-body">
       <div class="race-top">
@@ -930,9 +958,9 @@
   <details class="acc" id="acc-proj">
     <summary class="acc-head">
       <span class="acc-ico" aria-hidden="true">🏆</span>
-      <span class="acc-label">Projected Finish</span>
+      <span class="acc-label">Finish Odds</span>
       <span class="acc-sum" id="sum-proj"></span>
-      <span class="acc-chev" aria-hidden="true">▾</span>
+      <span class="acc-chev" aria-hidden="true"></span>
     </summary>
     <div class="acc-body">
       <div class="acc-top">
@@ -957,9 +985,9 @@
   <details class="acc" id="acc-hbp">
     <summary class="acc-head">
       <span class="acc-ico" aria-hidden="true">🩹</span>
-      <span class="acc-label">HBP Slot</span>
+      <span class="acc-label">HBP Leaders</span>
       <span class="acc-sum" id="sum-hbp"></span>
-      <span class="acc-chev" aria-hidden="true">▾</span>
+      <span class="acc-chev" aria-hidden="true"></span>
     </summary>
     <div class="acc-body"></div>
   </details>
@@ -967,9 +995,9 @@
   <details class="acc" id="acc-inj">
     <summary class="acc-head">
       <span class="acc-ico" aria-hidden="true">🩺</span>
-      <span class="acc-label">Injuries</span>
+      <span class="acc-label">Injury Report</span>
       <span class="acc-sum" id="sum-inj"></span>
-      <span class="acc-chev" aria-hidden="true">▾</span>
+      <span class="acc-chev" aria-hidden="true"></span>
     </summary>
     <div class="acc-body">
       <div class="acc-top">
@@ -988,9 +1016,9 @@
   <details class="acc" id="acc-pos">
     <summary class="acc-head">
       <span class="acc-ico" aria-hidden="true">📋</span>
-      <span class="acc-label">By Position</span>
+      <span class="acc-label">Points by Position</span>
       <span class="acc-sum" id="sum-pos"></span>
-      <span class="acc-chev" aria-hidden="true">▾</span>
+      <span class="acc-chev" aria-hidden="true"></span>
     </summary>
     <div class="acc-body">
       <div class="pos-table-wrap"><table class="pos-table" id="pos-table"></table></div>
@@ -1001,9 +1029,9 @@
   <details class="acc" id="acc-rosters">
     <summary class="acc-head">
       <span class="acc-ico" aria-hidden="true">👥</span>
-      <span class="acc-label">Rosters</span>
+      <span class="acc-label">Team Rosters</span>
       <span class="acc-sum" id="sum-rosters"></span>
-      <span class="acc-chev" aria-hidden="true">▾</span>
+      <span class="acc-chev" aria-hidden="true"></span>
     </summary>
     <div class="acc-body">
       <div class="acc-top"><span>tap a team &middot; swapped players struck through</span></div>
@@ -1462,8 +1490,8 @@ function renderRace() {
   document.getElementById('view-toggle').style.display =
     state.metric === 'points' ? '' : 'none';
   document.getElementById('race-title').textContent =
-    state.metric === 'points' ? 'Season Race'
-    : state.metric === 'win' ? 'Title Odds' : 'Last-Place Odds';
+    state.metric === 'points' ? 'Race Chart'
+    : state.metric === 'win' ? 'Title Odds Chart' : 'Last-Place Odds Chart';
 
   if (state.metric !== 'points') {
     tableWrap.style.display = 'none';
@@ -2270,6 +2298,7 @@ function initExpand(total) {
   const wrapper = document.getElementById('scorers-wrapper');
   const btn = document.getElementById('expand-btn');
   if (!wrapper || !btn || total === 0 || btn.dataset.ready) return;
+  if (window.innerWidth >= 900) return;   // desktop: fixed box, two columns, scrolls
   requestAnimationFrame(() => {
     if (wrapper.scrollHeight > wrapper.clientHeight + 4) {
       btn.dataset.ready = '1';
