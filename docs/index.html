@@ -859,6 +859,8 @@
       }
       #acc-dingers .scorer-row { break-inside: avoid; }
       #acc-dingers .expand-btn { display: none !important; }
+      #acc-dingers .acc-chev { display: none; }
+      #acc-dingers .acc-head { cursor: default; pointer-events: none; }
 
       #standings { padding: 14px 18px; }
       .standings-row { height: 66px; grid-template-columns: 26px 46px 1fr auto 72px; gap: 12px; }
@@ -903,7 +905,7 @@
   <details class="acc" id="acc-dingers">
     <summary class="acc-head">
       <span class="acc-ico" aria-hidden="true">⚾</span>
-      <span class="acc-label">Last Night's HRs</span>
+      <span class="acc-label">Last Night's Points</span>
       <span class="acc-sum" id="sum-dingers"></span>
       <span class="acc-chev" aria-hidden="true"></span>
     </summary>
@@ -1360,9 +1362,10 @@ function renderTopCards(latest) {
 
   document.getElementById('dingers-date').textContent = fmtDate(state.latestDate);
   state.scorerCount = scorers.length;
+  const nightPts = scorers.reduce((n, r) => n + r.todayPts, 0);
   setSum('sum-dingers', scorers.length
-    ? `${scorers.length} HR \u00b7 ${new Set(scorers.map(r => r.team)).size} team${new Set(scorers.map(r => r.team)).size > 1 ? 's' : ''}`
-    : 'no dingers');
+    ? `${nightPts} pts \u00b7 ${scorers.length} player${scorers.length > 1 ? 's' : ''}`
+    : 'no points');
   const topHbp = hbpRows[0];
   setSum('sum-hbp', topHbp && topHbp.p ? `Leader: ${topHbp.p.player} ${topHbp.pts} pts (${topHbp.team})` : '');
   state.sortedTeams = sorted.map(([team]) => team);
