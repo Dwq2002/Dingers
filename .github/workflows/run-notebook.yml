@@ -6,8 +6,14 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 11 * * *"  # 13:00 UTC = 8:00am America/Chicago during CDT
+    - cron: "0 11 * * *"   # 06:00 America/Chicago (CDT). GitHub may fire this late or skip it.
+    - cron: "30 11 * * *"  # safety retry; the guard below skips it if 11:00 already sent
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Send even if today's report already went out"
+        type: boolean
+        default: false
 
 jobs:
   run:
@@ -15,22 +21,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # One email per day, no matter how many times this workflow fires
+      # (late crons, the retry cron, or an outside trigger).
+      - name: Already sent today?
+        id: guard
+        run: |
+          if [ "${{ inputs.force }}" != "true" ] && [ -f "data/daily/points_$(date -u +%F).csv" ]; then
+            echo "Report for $(date -u +%F) already committed; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.guard.outputs.skip == 'false'
         with:
           python-version: "3.11"
 
       - run: pip install papermill jupyter nbconvert Pillow
+        if: steps.guard.outputs.skip == 'false'
 
       - name: Execute notebook (inject date)
+        if: steps.guard.outputs.skip == 'false'
         run: papermill Dingers_2026.ipynb output.ipynb -p RUN_DATE "$(date -u +%F)"
 
       - name: Upload executed notebook (optional)
+        if: steps.guard.outputs.skip == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: executed-notebook
           path: output.ipynb
 
       - name: Send email
+        if: steps.guard.outputs.skip == 'false'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
