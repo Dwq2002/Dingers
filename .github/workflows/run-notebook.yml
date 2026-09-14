@@ -3,7 +3,6 @@ name: Daily Notebook Run
 permissions:
   contents: write
 
-
 # Only one run at a time. A second trigger waits for the first to finish,
 # so the "already sent today" guard sees the first run's commit and skips.
 concurrency:
@@ -15,6 +14,8 @@ on:
     # GitHub cron is best-effort and usually fires 1-5 hours late, worst at the
     # top of the hour. Scheduling early (04:07 America/Chicago CDT) with several
     # retries gets the email out by ~07:00 most days. The guard keeps it to one send.
+    # An outside trigger (workflow_dispatch) at 07:00 Central is the primary path;
+    # these crons are the backup.
     - cron: "7 9 * * *"
     - cron: "37 9 * * *"
     - cron: "7 10 * * *"
@@ -33,13 +34,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # One email per day, no matter how many times this workflow fires
-      # (late crons, the retry cron, or an outside trigger).
+      # One email per day, no matter how many times this workflow fires.
+      # Keyed on data/daily/last_sent.txt, which is written ONLY after the email
+      # step succeeds. (The notebook commits the day's CSV before the email goes
+      # out, so the CSV alone can't be the marker: a mail failure would then
+      # block every retry for the rest of the day.)
       - name: Already sent today?
         id: guard
         run: |
-          if [ "${{ inputs.force }}" != "true" ] && [ -f "data/daily/points_$(date -u +%F).csv" ]; then
-            echo "Report for $(date -u +%F) already committed; skipping."
+          TODAY="$(date -u +%F)"
+          LAST="$(cat data/daily/last_sent.txt 2>/dev/null || true)"
+          if [ "${{ inputs.force }}" != "true" ] && [ "$LAST" = "$TODAY" ]; then
+            echo "Report for $TODAY already sent; skipping."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -65,15 +71,74 @@ jobs:
           path: output.ipynb
 
       - name: Send email
+        id: mail
         if: steps.guard.outputs.skip == 'false'
+        continue-on-error: true
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
-          subject: Daily Dingers Report # <-- guaranteed defined
+          subject: Daily Dingers Report
           to: "qwd2002@gmail.com, rhinoswank87@gmail.com,jteheng@gmail.com,ethan.hughes713@gmail.com,bespey80@gmail.com"
           from: "DingerBot445 <${{ secrets.MAIL_USER }}>"
           secure: false
           html_body: file://summary.html
+
+      # Gmail SMTP hiccups are usually transient. One more try after a short wait.
+      - name: Wait before retrying send
+        if: steps.guard.outputs.skip == 'false' && steps.mail.outcome == 'failure'
+        run: sleep 60
+      - name: Send email (retry)
+        id: mail_retry_send
+        uses: dawidd6/action-send-mail@v3
+        if: steps.guard.outputs.skip == 'false' && steps.mail.outcome == 'failure'
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: Daily Dingers Report
+          to: "qwd2002@gmail.com, rhinoswank87@gmail.com,jteheng@gmail.com,ethan.hughes713@gmail.com,bespey80@gmail.com"
+          from: "DingerBot445 <${{ secrets.MAIL_USER }}>"
+          secure: false
+          html_body: file://summary.html
+
+      # Mark today as sent. Only runs after a successful send, so a failed run
+      # leaves the door open for the next retry.
+      - name: Record send
+        if: steps.guard.outputs.skip == 'false' && (steps.mail.outcome == 'success' || steps.mail_retry_send.outcome == 'success')
+        run: |
+          date -u +%F > data/daily/last_sent.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/daily/last_sent.txt
+          git commit -m "Mark daily report sent for $(date -u +%F) [skip ci]"
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash origin main && git push && exit 0
+            echo "push attempt $i failed, retrying..."; sleep 15
+          done
+          echo "::error::Could not record send marker after 5 attempts"
+          exit 1
+
+      # Tell the humans. GitHub also emails the workflow actor on scheduled failures,
+      # but this reaches DQ too and names the run.
+      - name: Alert on failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "Daily Dingers Report FAILED (${{ github.run_id }})"
+          to: "ethan.hughes713@gmail.com, qwd2002@gmail.com"
+          from: "DingerBot445 <${{ secrets.MAIL_USER }}>"
+          secure: false
+          body: |
+            The daily Dingers email did not go out.
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Trigger: ${{ github.event_name }}
+            If the notebook succeeded and only the send failed, the next cron retry will try again.
+            To send by hand: gh workflow run run-notebook.yml -R ${{ github.repository }} --ref main
