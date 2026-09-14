@@ -4,10 +4,22 @@ permissions:
   contents: write
 
 
+# Only one run at a time. A second trigger waits for the first to finish,
+# so the "already sent today" guard sees the first run's commit and skips.
+concurrency:
+  group: daily-report
+  cancel-in-progress: false
+
 on:
   schedule:
-    - cron: "0 11 * * *"   # 06:00 America/Chicago (CDT). GitHub may fire this late or skip it.
-    - cron: "30 11 * * *"  # safety retry; the guard below skips it if 11:00 already sent
+    # GitHub cron is best-effort and usually fires 1-5 hours late, worst at the
+    # top of the hour. Scheduling early (04:07 America/Chicago CDT) with several
+    # retries gets the email out by ~07:00 most days. The guard keeps it to one send.
+    - cron: "7 9 * * *"
+    - cron: "37 9 * * *"
+    - cron: "7 10 * * *"
+    - cron: "37 10 * * *"
+    - cron: "7 11 * * *"
   workflow_dispatch:
     inputs:
       force:
