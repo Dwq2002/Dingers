@@ -10,17 +10,14 @@ concurrency:
   cancel-in-progress: false
 
 on:
-  schedule:
-    # GitHub cron is best-effort and usually fires 1-5 hours late, worst at the
-    # top of the hour. Scheduling early (04:07 America/Chicago CDT) with several
-    # retries gets the email out by ~07:00 most days. The guard keeps it to one send.
-    # An outside trigger (workflow_dispatch) at 07:00 Central is the primary path;
-    # these crons are the backup.
-    - cron: "7 9 * * *"
-    - cron: "37 9 * * *"
-    - cron: "7 10 * * *"
-    - cron: "37 10 * * *"
-    - cron: "7 11 * * *"
+  # 2026 regular season is over (last games 2026-09-27; the
+  # 2026-09-28 email covered them). Scheduled runs are OFF so nobody gets more emails.
+  # Next season: put the cron lines back and move SEASON_LAST_SEND below.
+  #   - cron: "7 9 * * *"
+  #   - cron: "37 9 * * *"
+  #   - cron: "7 10 * * *"
+  #   - cron: "37 10 * * *"
+  #   - cron: "7 11 * * *"
   workflow_dispatch:
     inputs:
       force:
@@ -39,12 +36,19 @@ jobs:
       # step succeeds. (The notebook commits the day's CSV before the email goes
       # out, so the CSV alone can't be the marker: a mail failure would then
       # block every retry for the rest of the day.)
+      # Also: no emails after the regular season ends, even if an outside
+      # trigger still fires. force=true overrides.
       - name: Already sent today?
         id: guard
+        env:
+          SEASON_LAST_SEND: "2026-09-28"
         run: |
           TODAY="$(date -u +%F)"
           LAST="$(cat data/daily/last_sent.txt 2>/dev/null || true)"
-          if [ "${{ inputs.force }}" != "true" ] && [ "$LAST" = "$TODAY" ]; then
+          if [ "${{ inputs.force }}" != "true" ] && [[ "$TODAY" > "$SEASON_LAST_SEND" ]]; then
+            echo "Season is over (last send $SEASON_LAST_SEND); skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ inputs.force }}" != "true" ] && [ "$LAST" = "$TODAY" ]; then
             echo "Report for $TODAY already sent; skipping."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else

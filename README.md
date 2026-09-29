@@ -15,7 +15,7 @@ A bot pulls every roster's stats from the MLB Stats API each morning, updates th
 | 2023 | **Ethan** |
 | 2024 | **Bo** |
 | 2025 | **Swank** |
-| 2026 | *in progress* |
+| 2026 | **Jack** |
 
 ## Scoring
 

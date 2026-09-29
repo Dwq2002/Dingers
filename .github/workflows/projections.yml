@@ -3,8 +3,9 @@ name: Rebuild projections
 # Kept deliberately separate from run-notebook.yml: if this ever fails, the daily
 # email is untouched and the site just keeps using the last good projections file.
 on:
-  schedule:
-    - cron: "0 13 * * *"   # after the notebook's 11:00 UTC run, so commits don't race
+  # Off for the offseason: the 2026 regular season is over.
+  # schedule:
+  #   - cron: "0 13 * * *"   # after the notebook's 11:00 UTC run, so commits don't race
   workflow_dispatch:
 
 permissions:

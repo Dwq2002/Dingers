@@ -825,6 +825,51 @@
     .champs-strip .champ b { color: var(--muted); font-weight: 700; margin-right: 5px; font-size: 0.66rem; }
     .champs-strip .champ-open { color: var(--muted); border-style: dashed; }
 
+    /* ---------- Season over: final result card + splash ---------- */
+    .final-card { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .final-cap {
+      grid-column: 1 / -1;
+      text-align: center;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.25rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+    .final-slot {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 10px 6px; border: 1px solid var(--border); border-radius: 10px; min-width: 0;
+      text-align: center;
+    }
+    .final-slot.win { border-color: var(--gold); }
+    .final-tag { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .final-slot.win .final-tag { color: var(--gold); }
+    .final-logo { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); }
+    .final-slot.win .final-logo { border-color: var(--gold); }
+    .final-team { font-weight: 700; font-size: 0.95rem; overflow-wrap: anywhere; }
+    .final-mgr { color: var(--muted); font-size: 0.72rem; }
+    .final-pts { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.04em; line-height: 1; }
+    .final-splash {
+      position: fixed; inset: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px; background: rgba(5, 7, 10, 0.82);
+    }
+    .final-splash .final-box {
+      width: 100%; max-width: 420px;
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px 14px 14px; text-align: center;
+    }
+    .final-splash h2 {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 0.08em; line-height: 1;
+      background: linear-gradient(135deg, #fff 30%, #ffd166 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .final-splash .final-sub { color: var(--muted); font-size: 0.75rem; margin: 4px 0 12px; }
+    .final-splash .final-card { margin-bottom: 12px; }
+    .final-close {
+      width: 100%; min-height: 40px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--gold); color: #1a1a1a; font: 700 0.85rem 'Inter', sans-serif; cursor: pointer;
+    }
+
     .loading {
       text-align: center;
       color: var(--muted);
@@ -898,6 +943,7 @@
 </header>
 
 <main class="stack" id="app">
+  <section class="card" id="final-result" hidden></section>
   <section class="strip card" id="standings">
     <div class="loading">Loading stats...</div>
   </section>
@@ -1056,7 +1102,7 @@
     <span class="champ"><b>2023</b> Ethan</span>
     <span class="champ"><b>2024</b> Bo</span>
     <span class="champ"><b>2025</b> Swank</span>
-    <span class="champ champ-open"><b>2026</b> TBD</span>
+    <span class="champ champ-open" id="champ-2026"><b>2026</b> TBD</span>
   </p>
   <p class="updated" id="updated"></p>
 </footer>
@@ -1089,6 +1135,11 @@ const TEAMS = [
   { name: "Swank's Shanks",   color: '#199e70', logo: RAW_ASSETS + 'Swanks_Shanks.JPG',   focus: [0.55, 0.42] },
   { name: "Swank's Tanks",    color: '#9085e9', logo: RAW_ASSETS + 'Swanks_Tanks.JPEG',   focus: [0.5, 0.45] },
 ];
+// Manager of each team, for the season-end result (matches the README).
+const MANAGERS = {
+  'Kid Named Dinger': 'Dave (DQ)', "Swank's Shanks": 'Jack', 'deep drivers': 'Swank',
+  'Bo': 'Bo', "Swank's Tanks": 'Ethan',
+};
 const TEAM_COLORS = Object.fromEntries(TEAMS.map(t => [t.name, t.color]));
 const TEAM_LOGOS  = Object.fromEntries(TEAMS.map(t => [t.name, t.logo]));
 const TEAM_FOCUS  = Object.fromEntries(TEAMS.map(t => [t.name, t.focus || [0.5, 0.5]]));
@@ -1223,7 +1274,10 @@ async function main() {
   });
 
   const runDate = latest[0]?.date || SEASON_START;
-  const latestDate = gameDate(runDate);
+  // Nothing after the regular season counts. Later files (the bot may still
+  // run) hold the same numbers, so the page stops at SEASON_END.
+  const seasonOver = gameDate(runDate) >= SEASON_END;
+  const latestDate = seasonOver ? SEASON_END : gameDate(runDate);
   const allFileDates = getDates(SEASON_START, runDate);
 
   await mapLimit(allFileDates, 12, async d => {
@@ -1236,7 +1290,7 @@ async function main() {
   });
   state.oddsHistory.forEach(r => { r.date = gameDate(r.date); });
 
-  state.dataDates = allFileDates.map(gameDate).filter(d => state.dailyData[d]);
+  state.dataDates = allFileDates.map(gameDate).filter(d => state.dailyData[d] && d <= latestDate);
   state.runDate = runDate;
   state.latestDate = latestDate;
   state.rangeStart = state.dataDates[0];
@@ -1251,7 +1305,8 @@ async function main() {
     img.src = t.logo;
   })));
 
-  renderTopCards(latest);
+  renderTopCards(state.dailyData[latestDate] || latest);
+  if (seasonOver) renderFinal(state.dailyTotals[latestDate] || teamTotals(latest));
   renderLegend();
   initFilters();
   renderRace();
@@ -1267,7 +1322,62 @@ async function main() {
   setTimeout(renderProjection, 60);
   initMetricChips();
   document.getElementById('updated').textContent = `Stats through ${fmtDate(latestDate)} \u00b7 updated ${fmtDate(runDate)} morning`;
-  document.getElementById('hdr-thru').textContent = `thru ${fmtDate(latestDate)}`;
+  document.getElementById('hdr-thru').textContent = seasonOver ? 'Final' : `thru ${fmtDate(latestDate)}`;
+}
+
+// ---------- Season over: winner + last place ----------
+// Highest total wins, lowest takes the punishment. (A tie would go to the
+// pitcher-walks tiebreaker, which isn't in the data, so it's flagged instead.)
+function renderFinal(totals) {
+  const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  if (sorted.length < 2) return;
+  const [win, winPts] = sorted[0];
+  const [lose, losePts] = sorted[sorted.length - 1];
+  const tieTop = sorted[1][1] === winPts;
+  const tieBottom = sorted[sorted.length - 2][1] === losePts;
+
+  const slot = (cls, tag, team, pts) => `
+    <div class="final-slot ${cls}">
+      <div class="final-tag">${tag}</div>
+      <img class="final-logo" src="${esc(TEAM_LOGOS[team] || '')}" alt="" style="${logoPos(team)}" />
+      <div class="final-team">${esc(team)}</div>
+      <div class="final-mgr">${esc(MANAGERS[team] || '')}</div>
+      <div class="final-pts">${pts} pts</div>
+    </div>`;
+  const card = `
+    <div class="final-card">
+      ${slot('win', tieTop ? '\ud83c\udfc6 Tied for 1st' : '\ud83c\udfc6 Champion', win, winPts)}
+      ${slot('lose', tieBottom ? '\ud83d\udc80 Tied for last' : '\ud83d\udc80 Last place', lose, losePts)}
+    </div>`;
+
+  const res = document.getElementById('final-result');
+  res.innerHTML = `<div class="final-card"><div class="final-cap">2026 Final &middot; season over</div></div>` + card;
+  res.hidden = false;
+
+  const champ = document.getElementById('champ-2026');
+  if (champ && !tieTop) {
+    champ.classList.remove('champ-open');
+    champ.innerHTML = `<b>2026</b> ${esc(MANAGERS[win] || win)}`;
+  }
+
+  // The little "season's over" screen. Shows once per visit; tap anywhere to close.
+  const splash = document.createElement('div');
+  splash.className = 'final-splash';
+  splash.setAttribute('role', 'dialog');
+  splash.setAttribute('aria-modal', 'true');
+  splash.setAttribute('aria-label', 'Season over');
+  splash.innerHTML = `
+    <div class="final-box">
+      <h2>Season Over</h2>
+      <div class="final-sub">2026 regular season final &middot; ${esc(fmtDate(SEASON_END))}</div>
+      ${card}
+      <button class="final-close" type="button">See final standings</button>
+    </div>`;
+  const close = () => splash.remove();
+  splash.addEventListener('click', e => { if (e.target === splash || e.target.closest('.final-close')) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); }, { once: true });
+  document.body.appendChild(splash);
+  splash.querySelector('.final-close').focus();
 }
 
 // ---------- Top cards: standings, today's dingers, HBP ----------
@@ -1294,7 +1404,7 @@ function renderTopCards(latest) {
       ? `<span class="team-change up">\u25b2+${change}</span>`
       : `<span class="team-change zero">&mdash;</span>`;
     const gap = leaderPts - pts;
-    const gapText = i === 0 ? 'Leader' : `${gap} back`;
+    const gapText = i === 0 ? (state.latestDate >= SEASON_END ? 'Champion' : 'Leader') : `${gap} back`;
     return `
       <div class="standings-row${i === 0 ? ' leader' : ''}" style="border-left-color:${TEAM_COLORS[team] || 'transparent'}">
         <div class="rank">${i === 0 ? '\u2605' : ''}${i + 1}</div>
